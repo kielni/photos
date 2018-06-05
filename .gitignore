@@ -2,3 +2,5 @@ client_id.json
 lambda.zip
 deploy/*
 .DS_Store/*
+.DS_Store
+deploy-button
