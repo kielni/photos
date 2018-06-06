@@ -27,7 +27,7 @@ def send_photo(url):
         message = client.messages.create(
             to=number,
             from_=os.environ['FROM_NUMBER'],
-            body=dt.strftime('%A %B %-d, %Y %-I:%M %p'),
+            body=dt.strftime('%A %B %-d'),
             media_url=url)
         print('send %s' % message.sid)
 
