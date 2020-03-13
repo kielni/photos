@@ -8,53 +8,63 @@ import google.oauth2.credentials
 
 import google_auth
 
-'''
+"""
 environment
     GOOGLE_CLIENT_ID
     GOOGLE_CLIENT_SECRET
     PHOTOS_REFRESH_TOKEN
     PHOTOS_ALBUM_ID
     PHOTOS_BUCKET
-'''
+
+photos API: https://github.com/googleapis/google-api-python-client
+"""
 
 
 def get_items(service, album_id, photos):
     items = []
-    req = service.mediaItems().search(body={
-        'pageSize': 500,
-        'albumId': album_id
-    })
-    while req:
+    body = {'pageSize': 100, 'albumId': album_id}
+    req = service.mediaItems().search(body=body)
+    max_items = int(os.environ.get('MAX_UPLOADS', 100))
+    while True:
         results = req.execute()
-        print('get_items: results=%s' % len(results.get('mediaItems', [])))
+        print('get_items: results=%s items=%s' % (len(results.get('mediaItems', [])), len(items)))
+        #print(' '.join([item['id'][:20] for item in results['mediaItems']]))
         for item in results['mediaItems']:
             if item['id'] in photos:
                 continue
             meta = item['mediaMetadata']
-            print('photo %s' % item['id'])
+            created = parser.parse(meta['creationTime'])
+            print('photo %s\t%s' % (item['id'][:40], created.strftime('%Y-%m-%d')))
             items.append({
                 'id': item['id'],
                 'mimeType': item['mimeType'],
-                'created': parser.parse(meta['creationTime']),
+                'created': created,
                 'url': '%s=w%s-h%s' % (item['baseUrl'], meta['width'], meta['height'])
             })
-        req = service.mediaItems().search_next(req, results)
+            if len(items) >= max_items:
+                break
+        if not results.get('nextPageToken') or len(items) >= max_items:
+            break
+        body['pageToken'] = results['nextPageToken']
+        req = service.mediaItems().search(body=body)
     print('returning %s new items' % len(items))
     return items
 
 
 def copy_file(s3, item, suffix=''):
     extensions = {'jpeg': 'jpg'}
-    filename = '%s%s.%s' % (
+    filename = '%s/%s%s.%s' % (
+        item['created'].strftime('%Y'),
         item['created'].strftime('%Y-%m-%d_%H%M%S'),
         suffix,
         extensions.get(item['mimeType'].split('/')[1]))
-    print('copy %s to %s' % (item['id'], filename))
+    print('copy %s to %s' % (item['id'][:40], filename))
     req = requests.get(item['url'], stream=True)
     print(s3.put_object(
         Body=req.content,
         Bucket=os.environ['PHOTOS_BUCKET'],
         ContentType=item['mimeType'],
+        StorageClass='STANDARD_IA',
         Key=filename))
     return filename
 
@@ -82,14 +92,16 @@ def lambda_handler(event=None, context=None):
     if not album_id:
         print('cannot find album %s' % os.environ['PHOTOS_ALBUM_ID'])
         return
-    print('\n* found album %s\n' % album_id)
+    print('\n* looking for album %s\n' % album_id)
 
     # get items
     items = get_items(service, album_id, photos)
     if not items:
         print('no new items')
         return
-    for item in items:
+    print('%s items' % len(items))
+    for idx, item in enumerate(items):
+        print('\n%s/%s' % (idx+1, len(items)))
         photos[item['id']] = copy_file(s3, item)
     print(s3.put_object(
         Body=json.dumps(manifest),

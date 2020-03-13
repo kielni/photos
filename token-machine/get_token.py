@@ -7,9 +7,9 @@ import google_auth_oauthlib.flow
 import googleapiclient.discovery
 
 CLIENT_SECRETS_FILE = os.environ.get('CLIENT_SECRETS_FILE', 'client_secret.json')
-SCOPES = os.environ.get('OAUTH_SCOPES', 'https://www.googleapis.com/auth/drive.photos.readonly')
-API_SERVICE_NAME = os.environ.get('API_SERVICE_NAME', 'photos')
-API_VERSION = os.environ.get('API_VERSION', 'v2')
+SCOPES = os.environ.get('OAUTH_SCOPES', 'https://www.googleapis.com/auth/photoslibrary.readonly')
+API_SERVICE_NAME = os.environ.get('API_SERVICE_NAME', 'photoslibrary')
+API_VERSION = os.environ.get('API_VERSION', 'v1')
 
 app = flask.Flask(__name__)
 app.secret_key = datetime.now().strftime('%s')
@@ -54,9 +54,11 @@ def credentials_to_dict(credentials):
 
 if __name__ == '__main__':
     os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
-    # set Authorized redirect URIs in API console to http://localhost:8080/oauth2callback
-    print('\n<-> http://localhost:8080\n')
-    app.run('localhost', 8080, debug=True)
+    os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'
+    os.environ['OAUTHLIB_IGNORE_SCOPE_CHANGE'] = '1'
+    # set Authorized redirect URIs in API console to http://localhost:8888/oauth2callback
+    print('\n<-> http://localhost:8888\n')
+    app.run('localhost', 8888, debug=True)
     # go to http://localhost:8080
     # allow access
     # copy token and refresh token to AWS Lambda
