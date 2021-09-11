@@ -78,10 +78,11 @@ brew install ffmpeg
   - download from Live album to `icloud-live-photos`
 
 ```
-icloudpd --directory ~/Pictures/icloud-live-photos --username username -a Live  --until-found 3
+python monthly.py --prep
 ```
 
 ### convert heic to jpg
+
 ```
 mogrify -format jpg *.heic
 ```
@@ -93,10 +94,8 @@ mogrify -format jpg *.heic
   - create <code>~/Pictures/trips/_year-destination_/album</code> directory
   - in ACDSee, sort by date taken
   - select photos by adding a rating
-  - copy rated photos to `album` directory
-  - rename to add date prefix from exif: `IMG_123.jpg` to `20200301_1200_123.jpg`
+  - copy rated photos to `album` (trips) or `staging` (everyday)
 
-TODO: rename script
 
 ### LivePhotos
 
@@ -123,6 +122,8 @@ magick 20200215_143035d2_p1250173.jpg -rotate 90 20200215_143035d2_p1250173.jpg
 
 Re-encode, drop audio, and resize:
 
+trips:
+
 ```
 ls *.mov | awk -F '.' '{ print $1 }' | xargs -I {} ffmpeg -i {}.mov -an -s 768x576 {}.mp4
 ```
@@ -132,8 +133,16 @@ See [LivePhotos for the web](https://medium.com/@kielnicholls/embedding-livephot
 ## export
 
 Export full size photos
+  - rename with date prefix
   - copy from `album` to <code>amazon-keep/_year-destination_</code> to sync to Amazon Photos.
   - sync `album` to <code>s3://photos-bucket/_year-destination_</code> for archiving.
+
+everyday:
+
+```
+python monthly.py
+```
+
 
 Copy to <code>~/Pictures/trips/_year-destination_/web</code> and resize:
 

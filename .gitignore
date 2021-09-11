@@ -4,3 +4,6 @@ deploy/*
 .DS_Store/*
 .DS_Store
 deploy-button
+local.env
+.idea/
+__pycache__/
