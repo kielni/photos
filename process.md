@@ -1,50 +1,167 @@
-# photo website process
+# photo selection for sharing and archiving
 
-## photos
+## overview
 
-### export
+Goal: select photos to keep, share, and archive efficiently and consistently.
 
-from iPhone
-  - AirDrop to ~/Downloads
-  - copy to /Volumes/media/Pictures/event
+Get photos from phones and waterproof camera to Mac.
+Select the good ones and copy to Amazon Photos album (for sharing) and S3 (for archiving).
+For trips, add captions, generate HTML, and resize for web.
+Delete uninteresting old photos from phone and Amazon Photos.
 
-from iCloud
-  - Export | Unmodified original
-  - copy to /Volumes/media/Pictures/event
+### everyday photos
 
-convert heic to jpg
-  - `brew install --with-libheif imagemagick`
-  - `mogrify -format jpg *.heic`
+  - Copy photos from phones (automatically) and waterproof camera (manually) to Mac.
+  - Review photos with ACDSee and add a rating to the good ones.
+  - Copy rated photos to `~/Pictures/sync` directory.
+  - Standardize filenames to `datetime-index.ext`.
+  - Move to <code>~/Pictures/amazon-keep/_year_</code> to sync to Amazon Photos album.
+  - Sync to <code>s3://photos-bucket/_year_</code> for archiving.
+  - Delete photos over 2 years old from `~/Pictures/amazon-phone`.
 
-### select
+### trip photos
 
-  - in ACDSee, sort by date taken
-  - select photos by adding a rating
-  - copy rated photos to `album` directory (parallel to `event`)
-  - rename to add date prefix from exif: IMG_123.jpg to 20200301_1200_123.jpg with `scripts/rename_exif_date.py`
+  - Copy photos from phones (automatically) and waterproof camera (manually) to a trip directory on Mac: <code>~/Pictures/trips/_year-destination_/all</code>.
+  - Review photos with ACDSee and add a rating to the good ones.
+  - Copy rated photos to <code>~/Pictures/trips/_year-destination_/album</code> directory.
+  - Standardize filenames to `datetime-index.ext`.
+  - Crop, edit, and add captions to Exif metadata.
+  - Copy from `album` to <code>amazon-keep/_year-destination_</code> to sync to Amazon Photos.
+  - Sync `album` to <code>s3://photos-bucket/_year-destination_</code> for archiving.
+  - Resize for website to <code>~/Pictures/trips/_year-destination_/web</code> directory.
+  - Generate HTML by merging a template with filenames and captions from Exif metadata.
+
+## setup
+
+### directory layout
+
+from `~/Pictures`
+
+  - `amazon-keep` -> `amazon-sync/Amazon\ Drive/keep/amazon-photos` - photos for sharing
+    - `2021` - one directory per year
+      - `2021-09-01_070723_414.jpg` - filename is datetime and number from camera
+    - `2021-Grand-Canyon` - full size photos, one directory per trip
+  - `amazon-phone` -> `amazon-sync/Amazon\ Drive/Pictures` - Amazon Photos apps sync phone and Mac
+    - `Kimberly's\ iPhone`
+  - `icloud-live-photos` - download LivePhotos here
+    - `review` - write mp4 versions here
+  - `staging` - to be synced to Amazon Photos and S3
+  - `trips` - trip photos, website, photo books
+    - `2021-Grand-Canyon`
+      - `all` - all photos from all sources
+      - `album` - selected photos
+      - `web` - photos resized for web, html, css, and support files
+
+### tools
+  - [icloudpd](https://github.com/icloud-photos-downloader/icloud_photos_downloader) to get LivePhotos from iCloud to local filesystem
+  - [exif](https://pypi.org/project/exif/) python package to get Exif metadata from photos
+  - [imagemagick](https://imagemagick.org/index.php) to convert `heic` to `jpg`
+  - [ffmpeg](https://www.ffmpeg.org/) to re-encode video
+  - [acdsee Photo Studio](https://www.acdsee.com/en/products/photo-studio-mac/) for reviewing, editing, and captioning photos
+  - [Amazon Photos](https://apps.apple.com/us/app/amazon-photos/id621574163) to sync photos from phones and share full-size photos with limited audience
+  - [VLC](https://www.videolan.org/) for viewing videos
+
+```
+pip install -r util/requirements.txt
+brew install --with-libheif imagemagick
+brew install ffmpeg
+# authenticate the first time
+icloudpd --directory ~/Pictures/icloud-live-photos --username username -a Live
+```
+
+## to Mac
+
+### photos from iPhones
+  - automatic: Amazon Photos app syncs from phone to `~/Pictures/amazon-phone`
+  - manual: AirDrop to <code>~/Pictures/trips/_year-destination_/all</code>
+  - from iCloud:
+    - Export | Unmodified original
+    - copy to <code>~/Pictures/trips/_year-destination_/all</code>
+
+### LivePhotos from iCloud
+  - download from Live album to `icloud-live-photos`
+
+```
+icloudpd --directory ~/Pictures/icloud-live-photos --username xxx -a Live --until-found 3
+python monthly.py --prep
+```
+
+### convert heic to jpg
+
+```
+mogrify -format jpg *.heic
+```
+
+## select
 
 ### jpg
 
-  - add captions in EXIF description
-  - edit / crop (original aspect ratio)
-  - rotate if browser rotates based on EXIF: `magick 20200215_143035d2_p1250173.jpg -rotate 90 20200215_143035d2_p1250173.jpg`
+  - create <code>~/Pictures/trips/_year-destination_/album</code> directory
+  - in ACDSee, sort by date taken
+  - select photos by adding a rating
+  - copy rated photos to `album` (trips) or `staging` (everyday)
 
-### LivePhoto
+
+### LivePhotos
+
+VLC preferences
+  - Video: uncheck Show video within the main window
+  - Interface | Main interface: uncheck Resize interface to the native video size
+  - Playlist: check Play and pause
+
+Drag all .mov to VLC.  Copy good ones to <code>~/Pictures/trips/_year-destination_/album</code>
+
+## process
+
+### jpg
+
+  - add captions in Exif description
+  - edit / crop (original aspect ratio)
+  - rotate if browser rotates based on Exif
+
+```
+magick 20200215_143035d2_p1250173.jpg -rotate 90 20200215_143035d2_p1250173.jpg
+```
+
+### LivePhotos
+
+Re-encode, drop audio, and resize:
+
+trips:
+
+```
+ls *.mov | awk -F '.' '{ print $1 }' | xargs -I {} ffmpeg -i {}.mov -an -s 768x576 {}.mp4
+```
 
 See [LivePhotos for the web](https://medium.com/@kielnicholls/embedding-livephotos-on-a-web-page-5dfa9b8b83e3)
 
-#### select
+## export
 
-  - download `.mov` files to file server `Pictures/year/topic`
-  - VLC: Video | Half size, Preferences | Video | uncheck Show video within the main window
-  - open in VLC and select
-  - copy to `selected`
+Export full size photos
+  - rename with date prefix
+  - copy from `album` to <code>amazon-keep/_year-destination_</code> to sync to Amazon Photos.
+  - sync `album` to <code>s3://photos-bucket/_year-destination_</code> for archiving.
 
-#### re-encode and resize
+everyday:
 
-`ls *.mov | awk -F '.' '{ print $1 }' | xargs -I {} ffmpeg -i {}.mov -an -s 768x576 {}.mp4`
+```
+python monthly.py
+```
 
-#### HTML
+
+Copy to <code>~/Pictures/trips/_year-destination_/web</code> and resize:
+
+```
+mogrify -path img -resize 800x800 -format jpg *.jpg
+```
+
+Generate html from template and files
+
+```
+exif_to_html.py *.jpg > content.html
+```
+
+Tag for LivePhotos
 
 ```
 <video loop muted playsinline autoplay>
@@ -52,13 +169,11 @@ See [LivePhotos for the web](https://medium.com/@kielnicholls/embedding-livephot
 </video>
 ```
 
-## web
+Review web version from localhost:8000
 
-  - resize: `mogrify -path img -resize 800x800 -format jpg *.jpg`
-  - update `exif_to_html.py` with portrait and panorama keys
-  - run `exif_to_html.py *.jpg > content.html` to generate HTML with captioned photos
+```
+cd web
+python -m http.server
+```
 
-## publish
-
-  - copy to file server: /Volumes/media/web/trips/event
-  - sync to S3: `./sync.sh`
+Publish: sync `web` to <code>s3://website-bucket/_year-destination_</code>
