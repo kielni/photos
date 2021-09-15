@@ -10,7 +10,6 @@ from util.photos import rename_jpg, rename_mp4, remove_old, process_live_photos
 """
 set in environment
     PHOTOS_ROOT = root of photos tree (~/Pictures)
-    ICLOUD_USERNAME = username for downloading LivePhotos
     S3_PHOTOS_BUCKET = s3 bucket for photos and videos
 
 assumes directory structure under PHOTOS_ROOT
@@ -28,14 +27,17 @@ ROOT = os.environ["PHOTOS_ROOT"]
 
 
 def monthly_prep():
-    """Download Live Photos, re-encode to mp4 without audio, and write to icloud-live-photos/review.
+    """Re-encode Live Photos to mp4 without audio, and write to icloud-live-photos/review.
 
-    Use icloudpd to download Live Photos.
+    Download LivePhotos to icloud-live-photos:
+        `icloudpd --directory ~/Pictures/icloud-live-photos --username xxx -a Live --until-found 3`
     Use process_live_photos to convert photos from previous months to mp4 in icloud-photos/review
     """
+    live_photos = f"{ROOT}/icloud-live-photos"
+    """
+    TODO: requires interactive password prompt
     if not os.environ.get("ICLOUD_USERNAME"):
         raise RuntimeError("ICLOUD_USERNAME must be set in environment")
-    live_photos = f"{ROOT}/icloud-live-photos"
     # download LivePhotos
     command = [
         "icloudpd",
@@ -56,6 +58,7 @@ def monthly_prep():
         universal_newlines=True,
     )
     print(process.stdout)
+    """
     # process LivePhotos from this month and last month
     for dt in [datetime.now() - timedelta(days=30), datetime.now()]:
         process_live_photos(
@@ -92,7 +95,7 @@ def monthly(dry_run: bool):
     print(
         f"{div}remove files in {phone_dir} older than {since_dt.strftime('%Y-%m-%d')}{div}"
     )
-    remove_old(since_dt, datetime(2000, 1, 1), dry_run)
+    remove_old(since_dt, datetime(2010, 1, 1), dry_run)
 
     os.chdir(keep_dir)
     s3_bucket = os.environ.get("S3_PHOTOS_BUCKET")

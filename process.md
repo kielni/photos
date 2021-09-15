@@ -40,9 +40,11 @@ from `~/Pictures`
   - `amazon-keep` -> `amazon-sync/Amazon\ Drive/keep/amazon-photos` - photos for sharing
     - `2021` - one directory per year
       - `2021-09-01_070723_414.jpg` - filename is datetime and number from camera
-    - `2021-Grand-Canyon` - full size photos, one directory per trip 
+    - `2021-Grand-Canyon` - full size photos, one directory per trip
   - `amazon-phone` -> `amazon-sync/Amazon\ Drive/Pictures` - Amazon Photos apps sync phone and Mac
     - `Kimberly's\ iPhone`
+  - `icloud-live-photos` - download LivePhotos here
+    - `review` - write mp4 versions here
   - `staging` - to be synced to Amazon Photos and S3
   - `trips` - trip photos, website, photo books
     - `2021-Grand-Canyon`
@@ -60,9 +62,11 @@ from `~/Pictures`
   - [VLC](https://www.videolan.org/) for viewing videos
 
 ```
-pip install icloudpd exif
+pip install -r util/requirements.txt
 brew install --with-libheif imagemagick
 brew install ffmpeg
+# authenticate the first time
+icloudpd --directory ~/Pictures/icloud-live-photos --username username -a Live
 ```
 
 ## to Mac
@@ -78,6 +82,7 @@ brew install ffmpeg
   - download from Live album to `icloud-live-photos`
 
 ```
+icloudpd --directory ~/Pictures/icloud-live-photos --username xxx -a Live --until-found 3
 python monthly.py --prep
 ```
 

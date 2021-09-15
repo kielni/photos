@@ -213,7 +213,7 @@ def remove_old(
             pass
         try:
             dt = exif_datetime(fn)
-        except ValueError:
+        except Exception:
             print(f"{fn}\tskip: can't get date")
             continue
         dt_str = dt.strftime("%Y-%m-%d")
