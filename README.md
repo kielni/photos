@@ -55,12 +55,12 @@ from `~/Pictures`
   - [exif](https://pypi.org/project/exif/) python package to get Exif metadata from photos
   - [imagemagick](https://imagemagick.org/index.php) to convert `heic` to `jpg`
   - [ffmpeg](https://www.ffmpeg.org/) to re-encode video
-  - [acdsee Photo Studio](https://www.acdsee.com/en/products/photo-studio-mac/) for reviewing, editing, and captioning photos
+  - [ACDsee Photo Studio](https://www.acdsee.com/en/products/photo-studio-mac/) for reviewing, editing, and captioning photos
   - [Amazon Photos](https://apps.apple.com/us/app/amazon-photos/id621574163) to sync photos from phones and share full-size photos with limited audience
   - [VLC](https://www.videolan.org/) for viewing videos
 
 ```
-pip install icloudpd exif
+pip install -r util/requirements.txt
 brew install --with-libheif imagemagick
 brew install ffmpeg
 ```
@@ -76,6 +76,7 @@ brew install ffmpeg
 
 ### LivePhotos from iCloud
   - download from Live album to `icloud-live-photos`
+  - re-encode to mp4, drop audio, rename with datetime in name, move to single directory (from nested)
 
 ```
 python monthly.py --prep
