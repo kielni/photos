@@ -95,10 +95,11 @@ def exif_datetime(fn: str) -> datetime:
                     d, t = img[key].split(" ")
                     break
             if not d:
-                raise ValueError(f"no exif date keys={img.list_all()}")
+                raise ValueError(f"no exif date")
             return date_parser.parse(f"{d.replace(':', '-')} {t}")
         except Exception as exc:
-            print(f"{fn}\terror parsing: {exc}")
+            # print(f"{fn}\terror parsing: {exc}")
+            pass
     return filename_datetime(fn)
 
 
@@ -214,7 +215,7 @@ def remove_old(
         try:
             dt = exif_datetime(fn)
         except Exception:
-            print(f"{fn}\tskip: can't get date")
+            # print(f"{fn}\tskip: can't get date")
             continue
         dt_str = dt.strftime("%Y-%m-%d")
         if dt > since:

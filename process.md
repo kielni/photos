@@ -177,3 +177,22 @@ python -m http.server
 ```
 
 Publish: sync `web` to <code>s3://website-bucket/_year-destination_</code>
+
+## trips
+
+Select and caption photos in `album` directory.
+
+```
+mkdir web
+mkdir web/img
+cp album/*.jpg web/img
+```
+
+Select all images, Batch resize
+
+```
+cd web/img
+exif_to_html.py *.jpg > ../content.html
+```
+
+Copy `content.html` into `index.html`
