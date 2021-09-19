@@ -3,6 +3,7 @@ import glob
 from datetime import datetime, timedelta
 import os
 import subprocess
+from typing import Set
 
 from util.photos import rename_jpg, rename_mp4, remove_old, process_live_photos
 
@@ -10,6 +11,7 @@ from util.photos import rename_jpg, rename_mp4, remove_old, process_live_photos
 """
 set in environment
     PHOTOS_ROOT = root of photos tree (~/Pictures)
+    ICLOUD_USERNAME = username for downloading LivePhotos
     S3_PHOTOS_BUCKET = s3 bucket for photos and videos
 
 assumes directory structure under PHOTOS_ROOT
@@ -20,24 +22,21 @@ assumes directory structure under PHOTOS_ROOT
 
 source local.env
 python monthly.py --prep - download LivePhotos to icloud-live-photos
-python monthly.py
+python monthly.py - copy photos from staging to Amazon Photos and S3
 """
 
 ROOT = os.environ["PHOTOS_ROOT"]
 
 
 def monthly_prep():
-    """Re-encode Live Photos to mp4 without audio, and write to icloud-live-photos/review.
+    """Download Live Photos, re-encode to mp4 without audio, and write to icloud-live-photos/review.
 
-    Download LivePhotos to icloud-live-photos:
-        `icloudpd --directory ~/Pictures/icloud-live-photos --username xxx -a Live --until-found 3`
+    Use icloudpd to download Live Photos.
     Use process_live_photos to convert photos from previous months to mp4 in icloud-photos/review
     """
-    live_photos = f"{ROOT}/icloud-live-photos"
-    """
-    TODO: requires interactive password prompt
     if not os.environ.get("ICLOUD_USERNAME"):
-        raise RuntimeError("ICLOUD_USERNAME must be set in environment")
+        raise Exception("ICLOUD_USERNAME must be set in environment")
+    live_photos = f"{ROOT}/icloud-live-photos"
     # download LivePhotos
     command = [
         "icloudpd",
@@ -58,7 +57,6 @@ def monthly_prep():
         universal_newlines=True,
     )
     print(process.stdout)
-    """
     # process LivePhotos from this month and last month
     for dt in [datetime.now() - timedelta(days=30), datetime.now()]:
         process_live_photos(
@@ -69,7 +67,7 @@ def monthly_prep():
 
 
 def monthly(dry_run: bool):
-    """Put files to keep in `staging`, then call this to rename and sync to Amazon photos and S3.
+    """Put files to keep in `staging`, then call this to rename and sync to Amazon Photos and S3.
 
     Rename jpg files in `staging` to yyyy-mm-dd_hhmmss_index.jpg
     Rename mp4 files in `staging` to yyyy-mm-dd_index.mp4
@@ -95,7 +93,7 @@ def monthly(dry_run: bool):
     print(
         f"{div}remove files in {phone_dir} older than {since_dt.strftime('%Y-%m-%d')}{div}"
     )
-    remove_old(since_dt, datetime(2010, 1, 1), dry_run)
+    remove_old(since_dt, datetime(2000, 1, 1), dry_run)
 
     os.chdir(keep_dir)
     s3_bucket = os.environ.get("S3_PHOTOS_BUCKET")
@@ -122,9 +120,7 @@ if __name__ == "__main__":
         "--dry_run", help="print actions but do not apply", action="store_true"
     )
     parser.add_argument(
-        "--prep",
-        help="prepare: download and re-encode Live Photos",
-        action="store_true",
+        "--prep", help="prepare: download and re-encode Live Photos", action="store_true"
     )
     args = parser.parse_args()
     if args.prep:

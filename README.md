@@ -1,86 +1,174 @@
 # photos
 
-## Google Photos to S3
+Goal: select photos to keep, share, and archive efficiently and consistently.
 
-[photos-to-s3](photos-to-s3/lambda_function.py)
-copy photos via Google Photos API to AWS S3 bucket
+## overview
 
-[deploy]((photos-to-s3/deploy.sh) as AWS Lambda function
+Get photos from phones and waterproof camera to Mac.
+Select the good ones and copy to Amazon Photos album (for sharing) and S3 (for archiving).
+For trips, add captions, generate HTML, and resize for web.
+Delete uninteresting old photos from phone and Amazon Photos.
 
-[token-machine](photos-to-s3/token-machine)
-run local service to get tokens via Google OAuth flow
+### everyday photos
 
-[get album id](photos-to-s3/album_id.py) from album name using Google OAuth tokens
+  - Copy photos from phones (automatically) and waterproof camera (manually) to Mac.
+  - Review photos with ACDSee and add a rating to the good ones.
+  - Copy rated photos to `~/Pictures/sync` directory.
+  - Standardize filenames to `datetime-index.ext`.
+  - Move to <code>~/Pictures/amazon-keep/_year_</code> to sync to Amazon Photos album.
+  - Sync to <code>s3://photos-bucket/_year_</code> for archiving.
+  - Delete photos over 2 years old from `~/Pictures/amazon-phone`.
 
-https://developers.google.com/api-client-library/python/
-`pip install --upgrade google-api-python-client`
+### trip photos
+
+  - Copy photos from phones (automatically) and waterproof camera (manually) to a trip directory on Mac: <code>~/Pictures/trips/_year-destination_/all</code>.
+  - Review photos with ACDSee and add a rating to the good ones.
+  - Copy rated photos to <code>~/Pictures/trips/_year-destination_/album</code> directory.
+  - Standardize filenames to `datetime-index.ext`.
+  - Crop, edit, and add captions to Exif metadata.
+  - Copy from `album` to <code>amazon-keep/_year-destination_</code> to sync to Amazon Photos.
+  - Sync `album` to <code>s3://photos-bucket/_year-destination_</code> for archiving.
+  - Resize for website to <code>~/Pictures/trips/_year-destination_/web</code> directory.
+  - Generate HTML by merging a template with filenames and captions from Exif metadata.
+
+## setup
+
+### directory layout
+
+from `~/Pictures`
+
+  - `amazon-keep` -> `amazon-sync/Amazon\ Drive/keep/amazon-photos` - photos for sharing
+    - `2021` - one directory per year
+      - `2021-09-01_070723_414.jpg` - filename is datetime and number from camera
+    - `2021-Grand-Canyon` - full size photos, one directory per trip 
+  - `amazon-phone` -> `amazon-sync/Amazon\ Drive/Pictures` - Amazon Photos apps sync phone and Mac
+    - `Kimberly's\ iPhone`
+  - `staging` - to be synced to Amazon Photos and S3
+  - `trips` - trip photos, website, photo books
+    - `2021-Grand-Canyon`
+      - `all` - all photos from all sources
+      - `album` - selected photos
+      - `web` - photos resized for web, html, css, and support files
+
+### tools
+  - [icloudpd](https://github.com/icloud-photos-downloader/icloud_photos_downloader) to get LivePhotos from iCloud to local filesystem
+  - [exif](https://pypi.org/project/exif/) python package to get Exif metadata from photos
+  - [imagemagick](https://imagemagick.org/index.php) to convert `heic` to `jpg`
+  - [ffmpeg](https://www.ffmpeg.org/) to re-encode video
+  - [acdsee Photo Studio](https://www.acdsee.com/en/products/photo-studio-mac/) for reviewing, editing, and captioning photos
+  - [Amazon Photos](https://apps.apple.com/us/app/amazon-photos/id621574163) to sync photos from phones and share full-size photos with limited audience
+  - [VLC](https://www.videolan.org/) for viewing videos
+
+```
+pip install icloudpd exif
+brew install --with-libheif imagemagick
+brew install ffmpeg
+```
+
+## to Mac
+
+### photos from iPhones
+  - automatic: Amazon Photos app syncs from phone to `~/Pictures/amazon-phone`
+  - manual: AirDrop to <code>~/Pictures/trips/_year-destination_/all</code>
+  - from iCloud:
+    - Export | Unmodified original
+    - copy to <code>~/Pictures/trips/_year-destination_/all</code>
+
+### LivePhotos from iCloud
+  - download from Live album to `icloud-live-photos`
+
+```
+python monthly.py --prep
+```
+
+### convert heic to jpg
+
+```
+mogrify -format jpg *.heic
+```
+
+## select
+
+### jpg
+
+  - create <code>~/Pictures/trips/_year-destination_/album</code> directory
+  - in ACDSee, sort by date taken
+  - select photos by adding a rating
+  - copy rated photos to `album` (trips) or `staging` (everyday)
 
 
-### details
+### LivePhotos
 
-- enable Photos API in Google API console
-- generate and download OAuth credentials from Google API console
-- copy `client_secret.json` to `token-machine`
-- run token machine
+VLC preferences
+  - Video: uncheck Show video within the main window
+  - Interface | Main interface: uncheck Resize interface to the native video size
+  - Playlist: check Play and pause
 
-    cd token-machine
-    pip install -r requirements.txt
-    python get_token.py
+Drag all .mov to VLC.  Copy good ones to <code>~/Pictures/trips/_year-destination_/album</code>
 
-- authorize application and copy tokens
-- set environment variables
-  - GOOGLE_CLIENT_ID
-  - GOOGLE_CLIENT_SECRET
-  - PHOTOS_REFRESH_TOKEN
-  - PHOTOS_BUCKET
-- get album: run `python album_id.py _album name_` from `photos-to-s3`
-- set environment variable PHOTOS_ALBUM_ID
-- run [photos-to-s3/lambda_function.py](photos-to-s3/lambda_function.py).lambda_handler
-  - get `manifest.json` from S3 bucket
-  - get items in Google Photos Album not in manifest
-  - copy photos to S3 and add to manifest
-  - update manifest file
+## process
 
-### docs
+### jpg
 
-[Photos Library API details](https://developers.google.com/resources/api-libraries/documentation/photoslibrary/v1/python/latest/photoslibrary_v1.mediaItems.html#search_next)
+  - add captions in Exif description
+  - edit / crop (original aspect ratio)
+  - rotate if browser rotates based on Exif
 
-[run OAuth flow on command line](https://developers.google.com/api-client-library/python/guide/aaa_oauth)
+```
+magick 20200215_143035d2_p1250173.jpg -rotate 90 20200215_143035d2_p1250173.jpg
+```
 
-[Photos library setup](https://developers.google.com/photos/library/guides/get-started) (but doesn't use python client)
+### LivePhotos
 
-[Google Python client library](https://developers.google.com/api-client-library/python/apis/photoslibrary/v1)
+Re-encode, drop audio, and resize:
 
-## send photo on AWS IoT button press
+trips:
 
-on button click, get a random photo URL from an S3 bucket and
-send MMS with Twilio API
+```
+ls *.mov | awk -F '.' '{ print $1 }' | xargs -I {} ffmpeg -i {}.mov -an -s 768x576 {}.mp4
+```
 
-### setup
+See [LivePhotos for the web](https://medium.com/@kielnicholls/embedding-livephotos-on-a-web-page-5dfa9b8b83e3)
 
-- create AWS Lambda
-- add IoT trigger
-  - enter serial number
-  - download certificate PEM and private key
-- hold button until blue light flashes
-- connect to Button ConfigureMe network
-- go to http://192.168.0.1/index.html
+## export
 
-- get [Twilio](https://www.twilio.com/) account id, auth token, and phone number
+Export full size photos
+  - rename with date prefix
+  - copy from `album` to <code>amazon-keep/_year-destination_</code> to sync to Amazon Photos.
+  - sync `album` to <code>s3://photos-bucket/_year-destination_</code> for archiving.
 
-- set Lambda environment variables
-  - TWILIO_ACCOUNT_SID
-  - TWILIO_AUTH_TOKEN
-  - FROM_NUMBER (iso-formatted number: +14081234567)
-  - TO_NUMBERS (space-delimited list of iso-formatted numbers)
-  - PHOTOS_BUCKET
+everyday:
 
-- run [photo-button/lambda_function.py](photo-button/lambda_function.py).lambda_handler()
+```
+python monthly.py
+```
 
-### docs
 
-[button setup](https://docs.aws.amazon.com/iot/latest/developerguide/configure-iot.html)
+Copy to <code>~/Pictures/trips/_year-destination_/web</code> and resize:
 
-get [public, time-limited S3 object URL](https://boto3.readthedocs.io/en/latest/guide/s3.html)
+```
+mogrify -path img -resize 800x800 -format jpg *.jpg
+```
 
-[send MMS with Twilio](https://www.twilio.com/docs/sms/tutorials/how-to-send-sms-messages-python)
+Generate html from template and files
+
+```
+exif_to_html.py *.jpg > content.html
+```
+
+Tag for LivePhotos
+
+```
+<video loop muted playsinline autoplay>
+  <source src="img/IMG_1561.mp4">
+</video>
+```
+
+Review web version from localhost:8000
+
+```
+cd web
+python -m http.server
+```
+
+Publish: sync `web` to <code>s3://website-bucket/_year-destination_</code>
