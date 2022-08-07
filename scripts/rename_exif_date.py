@@ -3,6 +3,8 @@ import argparse
 import glob
 import os
 import re
+import traceback
+
 from exif import Image
 
 """
@@ -20,7 +22,10 @@ def rename_exif(orig: str, dest: str, year_prefix: str, dry_run: bool):
     with open(orig, "rb") as image_file:
         img = Image(image_file)
     # 2020:02:23 14:12:03
-    dt = img.datetime.replace(" ", "_").replace(":", "")
+    try:
+        dt = img.datetime_original.replace(" ", "_").replace(":", "")
+    except AttributeError:
+        dt = img.datetime.replace(" ", "_").replace(":", "")
     # get the trailing digits of the filename
     match = re.search(r"(\d+)\.", orig)
     suffix = f"_{match.group(1)}" if match else ""
@@ -49,8 +54,12 @@ def rename_exif(orig: str, dest: str, year_prefix: str, dry_run: bool):
 
 
 def main(dest: str, year_prefix: bool, dry_run: bool):
-    for idx, fn in enumerate(glob.glob("*.jpg") + glob.glob("*.jpeg")):
-        rename_exif(fn, dest, year_prefix, dry_run)
+    for idx, fn in enumerate(glob.glob("*.jpg") + glob.glob("*.jpeg") + glob.glob("*.JPG")):
+        try:
+            rename_exif(fn, dest, year_prefix, dry_run)
+        except Exception as exc:
+            print("error renaming {fn}")
+            traceback.print_exc()
 
 
 if __name__ == "__main__":

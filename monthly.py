@@ -3,7 +3,7 @@ import glob
 from datetime import datetime, timedelta
 import os
 import subprocess
-from typing import Set
+from typing import List, Set
 
 from util.photos import rename_jpg, rename_mp4, remove_old, process_live_photos
 
@@ -33,7 +33,9 @@ def monthly_prep():
 
     Use icloudpd to download Live Photos.
     Use process_live_photos to convert photos from previous months to mp4 in icloud-photos/review
+    icloudpd --directory $PHOTOS_ROOT/icloud-live-photos --username $ICLOUD_USERNAME -a Live --until-found 3
     """
+    print("start monthly_prep")
     if not os.environ.get("ICLOUD_USERNAME"):
         raise Exception("ICLOUD_USERNAME must be set in environment")
     live_photos = f"{ROOT}/icloud-live-photos"
@@ -50,6 +52,7 @@ def monthly_prep():
         "3",
     ]
     print(f"downloading LivePhotos\n{' '.join(command)}")
+    """
     process = subprocess.run(
         command,
         stdout=subprocess.PIPE,
@@ -57,6 +60,7 @@ def monthly_prep():
         universal_newlines=True,
     )
     print(process.stdout)
+    """
     # process LivePhotos from this month and last month
     for dt in [datetime.now() - timedelta(days=30), datetime.now()]:
         process_live_photos(
@@ -65,6 +69,29 @@ def monthly_prep():
     photos = glob.glob(f"{live_photos}/review/*.mp4")
     print(f"\nreview {len(photos)} LivePhotos in {live_photos}/review")
 
+
+def s3_sync(filenames: List[str], dry_run: bool):
+    keep_dir = f"{ROOT}/amazon-keep"
+    os.chdir(keep_dir)
+    s3_bucket = os.environ.get("S3_PHOTOS_BUCKET")
+    print(f"\nsync files in {keep_dir} to S3")
+    if not filenames:
+        print(f"no files in {keep_dir}")
+        return
+    for idx, fn in enumerate(filenames):
+        print(f"{idx+1}/{len(filenames)}")
+        # convert to relative path
+        fn = fn.replace(keep_dir + "/", "")
+        command = ["aws", "s3", "cp", fn, f"s3://{s3_bucket}/{fn}", "--no-progress"]
+        print(" ".join(command))
+        if not dry_run:
+            process = subprocess.run(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                universal_newlines=True,
+            )
+            print(process.stdout)
 
 def monthly(dry_run: bool):
     """Put files to keep in `staging`, then call this to rename and sync to Amazon Photos and S3.
@@ -94,27 +121,11 @@ def monthly(dry_run: bool):
         f"{div}remove files in {phone_dir} older than {since_dt.strftime('%Y-%m-%d')}{div}"
     )
     remove_old(since_dt, datetime(2000, 1, 1), dry_run)
-
-    os.chdir(keep_dir)
-    s3_bucket = os.environ.get("S3_PHOTOS_BUCKET")
-    print(f"{div}sync files in {keep_dir} to S3{div}")
-    for idx, fn in enumerate(filenames):
-        print(f"{idx+1}/{len(filenames)}")
-        # convert to relative path
-        fn = fn.replace(keep_dir + "/", "")
-        command = ["aws", "s3", "cp", fn, f"s3://{s3_bucket}/{fn}", "--no-progress"]
-        print(" ".join(command))
-        if not dry_run:
-            process = subprocess.run(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                universal_newlines=True,
-            )
-            print(process.stdout)
+    s3_sync(filenames, dry_run)
 
 
 if __name__ == "__main__":
+    print("monthly")
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--dry_run", help="print actions but do not apply", action="store_true"
@@ -122,8 +133,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--prep", help="prepare: download and re-encode Live Photos", action="store_true"
     )
+    parser.add_argument(
+        "--s3", help="sync to s3", action="store_true"
+    )
     args = parser.parse_args()
+    print(args)
     if args.prep:
         monthly_prep()
+    elif args.prep:
+        s3_sync()
     else:
         monthly(args.dry_run)

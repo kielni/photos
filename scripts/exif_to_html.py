@@ -51,12 +51,12 @@ def main():
     panorama = {}
     # main
     text = '\n    <div class="card-body%s"><div class="card-text">%s</div></div>\n'
-    img_html = """<div class="col-md-12 col-lg-6">
+    img_html = """<div class="col">
   <div class="card">
     <img class="card-img-top%s" src="img/%s">%s
   </div>
 </div>"""
-    video_html = """<div class="col-md-12 col-lg-6">
+    video_html = """<div class="col">
   <div class="card">
     <video class="card-img-top%s" loop muted playsinline autoplay>
       <source src="mp4/%s">

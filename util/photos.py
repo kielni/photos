@@ -164,7 +164,7 @@ def rename_jpg(dest: str, year_prefix: bool, dry_run: bool) -> List[str]:
     :return: list of new filenames
     """
     filenames: List[str] = []
-    for idx, fn in enumerate(glob.glob("*.jpg") + glob.glob("*.jpeg")):
+    for idx, fn in enumerate(glob.glob("*.jpg") + glob.glob("*.jpeg") + glob.glob("*.JPG")):
         try:
             filenames.append(rename_exif(fn, dest, year_prefix, dry_run))
         except Exception as exc:

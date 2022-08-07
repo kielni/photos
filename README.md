@@ -40,7 +40,7 @@ from `~/Pictures`
   - `amazon-keep` -> `amazon-sync/Amazon\ Drive/keep/amazon-photos` - photos for sharing
     - `2021` - one directory per year
       - `2021-09-01_070723_414.jpg` - filename is datetime and number from camera
-    - `2021-Grand-Canyon` - full size photos, one directory per trip 
+    - `2021-Grand-Canyon` - full size photos, one directory per trip
   - `amazon-phone` -> `amazon-sync/Amazon\ Drive/Pictures` - Amazon Photos apps sync phone and Mac
     - `Kimberly's\ iPhone`
   - `staging` - to be synced to Amazon Photos and S3
@@ -79,6 +79,7 @@ brew install ffmpeg
   - re-encode to mp4, drop audio, rename with datetime in name, move to single directory (from nested)
 
 ```
+icloudpd --directory $PHOTOS_ROOT/icloud-live-photos --username $ICLOUD_USERNAME -a Live --until-found 3
 python monthly.py --prep
 ```
 
