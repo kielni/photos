@@ -11,6 +11,7 @@ from jinja2 import Environment, FileSystemLoader
 from PIL import Image, ImageOps
 from PIL.ExifTags import Base
 from PIL.ExifTags import GPS
+from tqdm import tqdm
 import yaml
 
 """
@@ -65,36 +66,30 @@ def merge_cards(filename: str, cards: List[str]) -> str:
     html_ids = set([el.get("id") for el in elements])
     to_add: List[str] = sorted(list(card_ids - html_ids))
     prev_el = None
-    for el in elements:
+    messages: List[str] = []
+    for el in tqdm(elements):
         # if id exists in html but not in cards, remove
         if el.get("id") and el.get("id") not in cards_by_id:
-            print(f"removing {el.get('id')}; not in album")
+            messages.append(f"removing {el.get('id')}; not in album")
             el.decompose()
             continue
         # if id exists in cards but not in html, add where id is greater than previous
         if to_add and to_add[0] < str(el.get("id")):
             add_after = prev_el if prev_el else el
-            print(f"adding card {to_add[0]} after {add_after.get('id')}")
+            messages.append(f"adding card {to_add[0]} after {add_after.get('id')}")
             card = cards_by_id.get(to_add.pop(0))
             add_after.append(card)
         prev_el = el
         # if id exists in both, replace with cards version
-        # print(f"updating card {el.get('id')}")
-        print(".", end="")
+        # messages.append(f"updating card {el.get('id')}")
+        # print(".", end="")
         el.replace_with(cards_by_id.get(el.get("id")))
 
-    for el_id in to_add:
-        print(f"adding card {el_id} after {prev_el.get('id')}")
+    for el_id in tqdm(to_add):
+        messages.append(f"adding card {el_id} after {prev_el.get('id')}")
         prev_el.append(cards_by_id.get(el_id))
-
+    print("\n".join(messages))
     # only return the content section
-    print("\n")
-    # TODO: something is messing up the rows
-    # should not be to page-content ids
-    """
-morogoro.html:        <div class="row row-cols-1 row-cols-md-2" id="page-content">
-morogoro.html:          <div class="row row-cols-1 row-cols-md-2" id="page-content">
-    """
     content = soup.find(attrs={"data-source": "files"})
     return str("\n".join([str(el) for el in content.children]))
 
@@ -109,7 +104,7 @@ def degrees_to_decimal(
 
 def extract_exif(filename: str, size: int) -> dict:
     """Extract EXIF data from filename."""
-    context: Dict[str, Any] = {}
+    context: Dict[str, Any] = {"error": None}
     try:
         img = Image.open(filename)
         # filename is full path
@@ -128,7 +123,7 @@ def extract_exif(filename: str, size: int) -> dict:
         ref = gps_info.get(GPS.GPSLongitudeRef)  # 'E'
         context["longitude"] = degrees_to_decimal(degrees, minutes, seconds, ref)
     except Exception as e:
-        print(f"error reading EXIF data from {filename}: {e}")
+        context["error"] = f"error reading EXIF data from {filename}: {e}"
     return context
 
 
@@ -152,9 +147,8 @@ def render_photos(
     filenames = [f for f in filenames if f >= min_fn and f <= max_fn]
     prev_day = None
     curr_day = None
-    for idx, filename in enumerate(filenames):
-        print(f"{idx+1}/{len(filenames)}\t{filename}")
-        # 20240805_124516_1553.jpg
+    messages: List[str] = []
+    for filename in tqdm(filenames):
         if match := re.search(r"(\d{8})_", filename):
             curr_day = match.group(1)
         if add_day_markers and curr_day and curr_day != prev_day:
@@ -164,7 +158,7 @@ def render_photos(
                 day_html = day_close_template.render(day_context)
             day_html += day_open_template.render(day_context)
             day_html += day_template.render(day_context)
-            print(f"adding day marker for {curr_day}")
+            messages.append(f"adding day marker for {curr_day}")
             cards.append(day_html)
             prev_day = curr_day
         context = {
@@ -173,15 +167,19 @@ def render_photos(
             "orientation": "landscape",
         }
         if filename.endswith(".jpg"):
-            context.update(extract_exif(f"{path}/album/{filename}", size))
+            extra = extract_exif(f"{path}/album/{filename}", size)
+            context.update(extra)
+            if extra.get("error"):
+                messages.append(extra["error"])
             card_html = card_template.render(context)
         else:
-            print(f"copying non-jpg file to {path}/web/img/{filename}")
+            messages.append(f"copying non-jpg file to {path}/web/img/{filename}")
             shutil.copy(f"{path}/album/{filename}", f"{path}/web/img/{filename}")
             card_html = video_template.render(context)
         cards.append(card_html)
     if add_day_markers and curr_day:
         cards.append(day_close_template.render({"day": curr_day}))
+    print("\n".join(messages))
     return cards
 
 
