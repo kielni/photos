@@ -1,0 +1,139 @@
+/*
+brown 82 67 48 #824330
+light black 25 23 24 #191718
+light background 224 224 224  #E0E0E0
+khaki 215 209 182 #D7D1B6
+*/
+body {
+  background-color: #E0E0E0;
+  font-family: 'Georama', sans-serif;
+  color: #191718;
+}
+
+h2 {
+  font-size: 1.5em;
+}
+
+.row {
+  margin-left: -10px;
+}
+
+.card-body {
+  padding: 0.3em 0.3em 0.6em 0.3em;
+}
+
+.card-text div {
+    margin-bottom: 0.3em;
+}
+
+.card-text.day {
+  font-size: 1.2em;
+}
+
+.card-text.day div {
+  padding-bottom: 0.5em;
+}
+
+.card, .intro {
+  margin-bottom: 1em;
+  margin-right: 0.1em;
+  border: 0;
+}
+
+.card-img-top.portrait {
+    width: 75%;
+    margin-left: 12.5%;
+}
+
+blockquote.blockquote {
+  font-size: 1em;
+  margin-left: 1em;
+  font-family: 'La Belle Aurore';
+}
+
+blockquote.blockquote footer {
+    font-family: 'Georama';
+}
+
+.intro .text {
+  margin-bottom: 0.5em;
+}
+.intro img.portrait {
+  width: 75%;
+  margin-left: 12.5%;
+}
+.intro .row {
+  margin-bottom: 0.5em;
+}
+.intro #photo-strip {
+  height: 200px;
+  margin-bottom: 1em;
+  margin-top: 1em;
+}
+.navbar-brand {
+  padding-right: 1em;
+}
+
+.navbar-brand img {
+  margin-right: 1em;
+  margin-left: 1em;
+  height: 1.5em;
+}
+
+.navbar-dark .navbar-nav .nav-link {
+  border-bottom: 3px;
+  margin-right: 2em;
+  color: #E9F2E8;
+}
+
+.navbar .navbar-nav .nav-link:focus, .navbar-dark .navbar-nav .nav-link:hover {
+  color: #824330;
+}
+
+.nav-link.active {
+  font-weight: bold;
+}
+
+nav.navbar {
+  background-color: #D7D1B6;
+  margin-bottom: 1rem;
+  margin-left: -0.9rem;
+  margin-right: -0.9rem;
+}
+
+nav.navbar-brand {
+  color: #191718;
+}
+
+ul.nav {
+  margin-left: 1em;
+}
+
+ .nav-link {
+  color: #191718
+}
+.navbar-brand a {
+  color: #191718;
+  text-decoration: none;
+}
+
+
+.list-group-item-action:hover {
+  color: #fff;
+  background-color: #9A7258;
+  font-weight: bold;
+}
+
+body.map { margin: 0; padding: 0; }
+#map { position: absolute; top: 0; bottom: 0; width: 100%; }
+iframe { height: 600px; }
+
+#map .card-img-top {
+  width: 200px;
+}
+#map .card {
+  margin-bottom: 0;
+}
+#map .card-body {
+  padding: 0;
+}

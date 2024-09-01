@@ -1,3 +1,4 @@
+
 # photos
 
 Goal: select photos to keep, share, and archive efficiently and consistently.
@@ -9,11 +10,23 @@ Select the good ones and copy to Amazon Photos album (for sharing) and S3 (for a
 For trips, add captions, generate HTML, and resize for web.
 Delete uninteresting old photos from phone and Amazon Photos.
 
+Select photos form iPhone photos: rate, then copy to staging
+Copy all from staging to to staging/to-family-share
+From iPhoto
+  - import from staging/to-family-share
+  - from Imports, share to Family share
+  - ?? remove duplicates: sort by date taken
+  - export unmodified originals to family-share-export
+Move family-share-export/* to staging
+Batch rename with Exif datetime filename
+Sort by filename
+De-dupe
+
 ### everyday photos
 
   - Copy photos from phones (automatically) and waterproof camera (manually) to Mac.
   - Review photos with ACDSee and add a rating to the good ones.
-  - Copy rated photos to `~/Pictures/sync` directory.
+  - Copy rated photos to `~/Pictures/staging` directory.
   - Standardize filenames to `datetime-index.ext`.
   - Move to <code>~/Pictures/amazon-keep/_year_</code> to sync to Amazon Photos album.
   - Sync to <code>s3://photos-bucket/_year_</code> for archiving.
@@ -94,7 +107,8 @@ mogrify -format jpg *.heic
 ### jpg
 
   - create <code>~/Pictures/trips/_year-destination_/album</code> directory
-  - in ACDSee, sort by date taken
+  - rename with EXIF date: `python photos/scripts/rename_exif_date.py`
+  - in ACDSee, sort by name
   - select photos by adding a rating
   - copy rated photos to `album` (trips) or `staging` (everyday)
 
@@ -155,7 +169,7 @@ mogrify -path img -resize 800x800 -format jpg *.jpg
 Generate html from template and files
 
 ```
-exif_to_html.py *.jpg > content.html
+python exif_to_html.py *.jpg > content.html
 ```
 
 Tag for LivePhotos

@@ -1,0 +1,40 @@
+      <div class="row row-cols-1 row-cols-md-2 intro" id="intro">
+        <div class="col-md-12 col-lg-6" id="intro-text">
+          <div class="card">
+            <div class="card-body">
+              <div>
+                <!-- description goes here -->
+              </div>
+              <div>
+                <ul class="list-group">
+                {% for page in pages %}
+                  <li class="list-group-item">
+                    <a href="{{page.id}}.html">{{page.text}}</a> -
+                  </li>
+                {% endfor %}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-12 col-lg-6" id="intro-map">
+          <iframe
+            class="embed-responsive"
+            src="map.html"
+            width="100%"
+            height="100%"
+            frameborder="0"
+          ></iframe>
+        </div>
+      </div> <!-- /row intro  -->
+      <hr />
+      <div class="row" id="documents">
+        <div class="col-md-12">
+          <div class="card">
+            <div class="card-body">
+              <div class="row documents" id="documents-1">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div> <!-- /row documents -->

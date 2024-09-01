@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+    <link rel="stylesheet" href="support/bootstrap-5.2.0.min.css" />
+    <link rel="stylesheet" href="style.css" />
+    <title>{{destination}}</title>
+    <meta
+      property="og:url"
+      content="{{domain}}/{{path}}/index.html"
+    />
+    <meta property="og:title" content="{{tagline}}" />
+    <meta property="og:image"
+    content="{{domain}}/{{highlight_image}}"
+    />
+    <link rel="shortcut icon" href="logo.png" />
+  </head>
+  <body>
+    <nav class="navbar navbar-expand-lg navbar">
+      <span class="navbar-brand">
+        <img src="logo.png" class="d-inline-block" alt="" />
+        <a href="index.html">{{title}}</a>
+      </span>
+      <ul class="nav justify-content-center">
+        {% for page in pages %}
+        <li class="nav-item">
+          <a class="nav-link {{page.active}}" href="{{page.id}}.html"
+            >{{page.text}}</a>
+        </li>
+        {% endfor %}
+      </ul>
+    </nav>
+
+    <div class="container-fluid">
+      {{content}}
+    </div> <!-- /container -->
+    <script src="support/bootstrap-5.2.0.bundle.min.js"></script>
+  </body>
+</html>
