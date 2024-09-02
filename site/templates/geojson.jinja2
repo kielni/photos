@@ -1,0 +1,19 @@
+{
+    "type": "FeatureCollection",
+    "features":[
+    {% for feature in features %}
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [{{ feature.longitude }}, {{ feature.latitude }}, {{feature.altitude}}]
+            },
+            "properties": {
+                "icon": "photo",
+                "image": "img/{{ feature.filename }}",
+                "description": "{{ feature.description }}"
+            }
+        }{% if not loop.last %},{% endif %}
+    {% endfor %}
+    ]
+}

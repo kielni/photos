@@ -34,7 +34,7 @@ cards
 """
 
 
-def setup_pages(site: dict, current: str) -> dict:
+def set_active_page(site: dict, current: str) -> dict:
     for page in site["pages"]:
         page["active"] = "active" if page["id"] == current else ""
     return site["pages"]
@@ -67,7 +67,7 @@ def merge_cards(filename: str, cards: List[str]) -> str:
     to_add: List[str] = sorted(list(card_ids - html_ids))
     prev_el = None
     messages: List[str] = []
-    for el in tqdm(elements):
+    for el in elements:
         # if id exists in html but not in cards, remove
         if el.get("id") and el.get("id") not in cards_by_id:
             messages.append(f"removing {el.get('id')}; not in album")
@@ -85,7 +85,7 @@ def merge_cards(filename: str, cards: List[str]) -> str:
         # print(".", end="")
         el.replace_with(cards_by_id.get(el.get("id")))
 
-    for el_id in tqdm(to_add):
+    for el_id in to_add:
         messages.append(f"adding card {el_id} after {prev_el.get('id')}")
         prev_el.append(cards_by_id.get(el_id))
     print("\n".join(messages))
@@ -99,11 +99,13 @@ def degrees_to_decimal(
 ) -> float:
     """Convert degrees, minutes, seconds to decimal."""
     decimal = float(degrees + minutes / 60 + seconds / 3600)
+    # round to 5 decimals (1 meter)
+    decimal = round(decimal, 5)
     return decimal if direction in "NE" else -decimal
 
 
-def extract_exif(filename: str, size: int) -> dict:
-    """Extract EXIF data from filename."""
+def read_exif_resize(filename: str, size: int) -> dict:
+    """Extract EXIF data from filename and write resized image to web/img."""
     context: Dict[str, Any] = {"error": None}
     try:
         img = Image.open(filename)
@@ -117,70 +119,104 @@ def extract_exif(filename: str, size: int) -> dict:
         degrees, minutes, seconds = gps_info.get(GPS.GPSLatitude)  # (6.0, 45.0, 54.34)
         ref = gps_info.get(GPS.GPSLatitudeRef)  # 'S'
         context["latitude"] = degrees_to_decimal(degrees, minutes, seconds, ref)
-        degrees, minutes, seconds = gps_info.get(
-            GPS.GPSLongitude
-        )  # (37.0, 25.0, 19.34)
+        degrees, minutes, seconds = gps_info.get(GPS.GPSLongitude)  # (37.0, 2.0, 9.34)
         ref = gps_info.get(GPS.GPSLongitudeRef)  # 'E'
         context["longitude"] = degrees_to_decimal(degrees, minutes, seconds, ref)
+        context["altitude"] = round(float(gps_info.get(GPS.GPSAltitude, 0)), 5)
     except Exception as e:
-        context["error"] = f"error reading EXIF data from {filename}: {e}"
+        context["error"] = f"{filename}: invalid EXIF data: {e}"
     return context
 
 
-def render_photos(
-    path: str, min_fn: str, max_fn: str, size: int, add_day_markers: bool = False
-) -> List[str]:
-    """Create list of card HTML by merging files between min_fn and max_fn with card template.
-
-    Set in context: id, filename
-    Add from EXIF if available: orientation, description, latitude, longitude
-    """
+def open_day(path: str, curr_day: str) -> str:
     env = Environment(loader=FileSystemLoader(f"{path}/templates"))
-    card_template = env.get_template(f"card.jinja2")
-    video_template = env.get_template(f"card_video.jinja2")
-    day_template = env.get_template("day.jinja2")
-    day_open_template = env.get_template("day_open.jinja2")
-    day_close_template = env.get_template("day_close.jinja2")
+    return env.get_template("day_open.jinja2").render({"day": curr_day})
+
+
+def close_day(path: str, curr_day: str) -> str:
+    env = Environment(loader=FileSystemLoader(f"{path}/templates"))
+    return env.get_template("day_close.jinja2").render({"day": curr_day})
+
+
+def render_new_day(path: str, curr_day: str, prev_day: str) -> str:
+    env = Environment(loader=FileSystemLoader(f"{path}/templates"))
+    html = close_day(path, curr_day) if prev_day else ""
+    template = env.get_template("day.jinja2")
+    return html + open_day(path, curr_day) + template.render({"day": curr_day})
+
+
+def render_active_page(path: str, context: dict, initial: bool):
+    """Render HTML from list of context objects in page_data.
+
+    Render card HTML for each object in page_data. Add day markers between
+    dates if initial run.
+    """
+    page_id = context["active_page"]
+    out_fn = f"{path}/web/{page_id}.html"
+    print(f"Rendering {out_fn}")
+
+    env = Environment(loader=FileSystemLoader(f"{path}/templates"))
+    card_template = env.get_template("card.jinja2")
+    video_template = env.get_template("card_video.jinja2")
     cards: List[str] = []
-    filenames = sorted(os.listdir(f"{path}/album"))
-    # get filenames between page["start"] and page["end"]
-    filenames = [f for f in filenames if f >= min_fn and f <= max_fn]
-    prev_day = None
-    curr_day = None
+    prev_day = curr_day = ""
     messages: List[str] = []
-    for filename in tqdm(filenames):
+
+    for file_context in tqdm(context["page_data"], desc="render"):
+        filename = file_context["filename"]
         if match := re.search(r"(\d{8})_", filename):
             curr_day = match.group(1)
-        if add_day_markers and curr_day and curr_day != prev_day:
-            day_html = ""
-            day_context = {"day": curr_day}
-            if prev_day is not None:
-                day_html = day_close_template.render(day_context)
-            day_html += day_open_template.render(day_context)
-            day_html += day_template.render(day_context)
+        if initial and curr_day and curr_day != prev_day:
             messages.append(f"adding day marker for {curr_day}")
-            cards.append(day_html)
-            prev_day = curr_day
+            cards.append(render_new_day(path, curr_day, prev_day))
+        prev_day = curr_day
+        if filename.endswith(".jpg"):
+            cards.append(card_template.render(file_context))
+        else:
+            cards.append(video_template.render(file_context))
+
+    if initial:
+        if curr_day:
+            cards.append(close_day(path, curr_day))
+        context["content"] = "\n".join(cards)
+    else:
+        context["content"] = merge_cards(out_fn, cards)
+    # create content body
+    body_html = env.get_template("page_body.jinja2").render(context)
+    context["content"] = body_html
+    # merge with frame
+    write_file(out_fn, env.get_template("frame.jinja2").render(context))
+
+
+def gather_page_data(path: str, min_fn: str, max_fn: str, img_size: int) -> List[dict]:
+    """Get data for each file between min_fn and max_fn.
+
+    Return a dictionary for each file, containing id, filename, orientation. If available,
+    get description, latitude, longitude, and altitude from EXIF data.
+    Resize and copy files from album to web/img.
+    """
+    filenames = sorted(os.listdir(f"{path}/album"))
+    # get filenames between min_fn and max_fn
+    filenames = [f for f in filenames if min_fn <= f <= max_fn]
+    messages: List[str] = []
+    contexts: List[dict] = []
+    for filename in tqdm(filenames, desc="gather"):
         context = {
             "id": f"p-{filename.split('.')[0]}",  # id can't start with a number
             "filename": filename,
             "orientation": "landscape",
         }
         if filename.endswith(".jpg"):
-            extra = extract_exif(f"{path}/album/{filename}", size)
+            extra = read_exif_resize(f"{path}/album/{filename}", img_size)
             context.update(extra)
             if extra.get("error"):
                 messages.append(extra["error"])
-            card_html = card_template.render(context)
         else:
             messages.append(f"copying non-jpg file to {path}/web/img/{filename}")
             shutil.copy(f"{path}/album/{filename}", f"{path}/web/img/{filename}")
-            card_html = video_template.render(context)
-        cards.append(card_html)
-    if add_day_markers and curr_day:
-        cards.append(day_close_template.render({"day": curr_day}))
+        contexts.append(context)
     print("\n".join(messages))
-    return cards
+    return contexts
 
 
 def load_site(path: str) -> dict:
@@ -189,21 +225,28 @@ def load_site(path: str) -> dict:
     # TODO: validate
 
 
-def write_html(filename: str, html: str):
+def write_file(filename: str, html: str):
     print(f"Writing {filename}")
     with open(f"{filename}", "w") as f:
         f.write(html)
 
 
 def render_index(path: str, context: dict):
-    """Generate index.html by merging templates/index.jinja2 with context."""
+    page = "index"
     env = Environment(loader=FileSystemLoader(f"{path}/templates"))
-    # generate body of index.html and save as context
-    context["pages"] = setup_pages(context, "index")
-    context["content"] = env.get_template("index_body.jinja2").render(context)
+    context["pages"] = set_active_page(context, page)
+    context["content"] = env.get_template(f"{page}.jinja2").render(context)
     # merge index content with frame
     html = env.get_template("frame.jinja2").render(context)
-    write_html(f"{path}/web/index.html", html)
+    write_file(f"{path}/web/{page}.html", html)
+
+
+def render_map(path: str, context: dict):
+    page = "map"
+    env = Environment(loader=FileSystemLoader(f"{path}/templates"))
+    context["pages"] = set_active_page(context, page)
+    html = env.get_template(f"{page}.jinja2").render(context)
+    write_file(f"{path}/web/{page}.html", html)
 
 
 def render_pages(path: str, initial: bool = False, page_name: Optional[str] = None):
@@ -213,30 +256,29 @@ def render_pages(path: str, initial: bool = False, page_name: Optional[str] = No
     if initial:
         # TODO: merge? if contents of site changed; or ignore for now
         render_index(path, context)
+        render_map(path, context)
+    all_data: List[dict] = []
     for page in context["pages"]:
+        print(f"\nStarting page {page['id']}: {page['start']} to {page['end']}")
         page_id = page["id"]
-        if not initial and page_name and page_id != page_name:
+        context["active_page"] = page_id
+        if page_name and page_id != page_name and not initial:
             continue
-        out_fn = f"{path}/web/{page_id}.html"
-        print(f"Rendering {out_fn}")
         # generate page content
-        context["pages"] = setup_pages(context, page_id)
-        cards = render_photos(
-            path,
-            page["start"],
-            page["end"],
-            context["img_size"],
-            add_day_markers=initial,
+        context["pages"] = set_active_page(context, page_id)
+        page_data = gather_page_data(
+            path, page["start"], page["end"], context["img_size"]
         )
-        if initial:
-            context["content"] = "\n".join(cards)
-        else:
-            context["content"] = merge_cards(out_fn, cards)
-        # merge with frame
-        context["content"] = env.get_template(f"page_body.jinja2").render(context)
-        html = env.get_template("frame.jinja2").render(context)
-        write_html(out_fn, html)
-    os.system(f"npx prettier --write {path}/web/*.html")
+        # print(f"{len(page_data)} files for {page_id}")
+        context["page_data"] = page_data
+        all_data += page_data
+        render_active_page(path, context, initial)
+    if not page_name:
+        # only render geojson with complete data
+        geo_data = [f for f in all_data if "latitude" in f and "longitude" in f]
+        geo_json = env.get_template("geojson.jinja2").render({"features": geo_data})
+        write_file(f"{path}/web/photos.json", geo_json)
+    os.system(f"npx prettier --write {path}/web/*.html {path}/web/*.json")
     # TODO: git
 
 
@@ -278,17 +320,14 @@ def setup(path: str):
         os.mkdir(f"{path}/web/img")
     except FileExistsError:
         pass
-    # copy map.js and style.css to path/web
-    for key in ["map.js", "style.css"]:
-        print(f"Copying {key} to {path}/web")
-        shutil.copy(f"templates/{key}", f"{path}/web")
-    # recursively copy templates to path/
-    print(f"Copying templates to {path}")
-    # copy templates/*.jinja2 to path/templates
+    print("Copying templates")
+    for pattern in ["*.png", "*.html", "*.js", "*.css"]:
+        for filename in glob.glob(f"templates/{pattern}"):
+            shutil.copy(filename, f"{path}/web")
     for filename in glob.glob("templates/*.jinja2"):
         shutil.copy(filename, f"{path}/templates")
-    print(f"Copying support to {path}")
     shutil.copytree("templates/support", f"{path}/web/support", dirs_exist_ok=True)
+    shutil.copytree("templates/icons", f"{path}/web/icons", dirs_exist_ok=True)
     render_pages(path, initial=True)
 
     # setup git

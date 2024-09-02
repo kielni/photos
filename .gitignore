@@ -7,3 +7,4 @@ deploy-button
 local.env
 .idea/
 __pycache__/
+**/.config

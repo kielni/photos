@@ -1,4 +1,5 @@
 maptilersdk.config.apiKey = MAP_TILER_API_KEY;
+
 // get lat and lng parmeter from url
 const urlParams = new URLSearchParams(window.location.search);
 const latParam = parseFloat(urlParams.get("lat"));
@@ -21,50 +22,53 @@ const map = new maptilersdk.Map({
   zoom: initialZoom,
 });
 map.on("load", async function () {
-  map.addSource("route", { type: "geojson", data: "tanzania_gz.json" });
+  map.addSource("photos", { type: "geojson", data: "photos.json" });
 
   const icons = {
-    lodging: await map.loadImage("lodging.png"),
-    airport: await map.loadImage("airport.png"),
-    point_of_interest: await map.loadImage("point_of_interest.png"),
-    photo: await map.loadImage("photo.png"),
+    lodging: await map.loadImage("icons/lodging.png"),
+    airport: await map.loadImage("icons/airport.png"),
+    point_of_interest: await map.loadImage("icons/point_of_interest.png"),
+    photo: await map.loadImage("icons/photo.png"),
   };
   for (let icon in icons) {
-    console.log("Adding icon", icon);
     // replace default versions of icons
     if (map.hasImage(icon)) map.removeImage(icon);
     map.addImage(icon, icons[icon].data);
   }
-
+  // show photos at zoom level 8 and above
+  map.addLayer({
+    id: "photos",
+    minzoom: 8,
+    type: "symbol",
+    source: "photos",
+    filter: ["all", ["==", "$type", "Point"], ["==", "icon", "photo"]],
+    layout: {
+      "icon-image": ["get", "icon"],
+    },
+  });
+  // show non-photo points at all zoom levels
+  map.addLayer({
+    id: "points",
+    type: "symbol",
+    source: "photos",
+    filter: ["all", ["==", "$type", "Point"], ["!=", "icon", "photo"]],
+    layout: {
+      "icon-image": ["get", "icon"],
+    },
+  });
+  // add line feature for driving route
+  /*
   map.addLayer({
     id: "route",
     type: "line",
-    source: "route",
+    source: "photos",
     layout: {},
     paint: {
       "line-color": "rgb(68, 138, 255)",
       "line-width": 2,
     },
   });
-  map.addLayer({
-    id: "photos",
-    minzoom: 8,
-    type: "symbol",
-    source: "route",
-    filter: ["all", ["==", "$type", "Point"], ["==", "icon", "photo"]],
-    layout: {
-      "icon-image": ["get", "icon"],
-    },
-  });
-  map.addLayer({
-    id: "points",
-    type: "symbol",
-    source: "route",
-    filter: ["all", ["==", "$type", "Point"], ["!=", "icon", "photo"]],
-    layout: {
-      "icon-image": ["get", "icon"],
-    },
-  });
+  */
 
   const popup = new maptilersdk.Popup({
     closeButton: false,
@@ -72,7 +76,7 @@ map.on("load", async function () {
   });
 
   function showPopup(e) {
-        // from https://docs.maptiler.com/sdk-js/examples/popup-on-hover/
+    // from https://docs.maptiler.com/sdk-js/examples/popup-on-hover/
     // Change the cursor style as a UI indicator.
     map.getCanvas().style.cursor = "pointer";
     const feature = e.features[0];
@@ -83,9 +87,9 @@ map.on("load", async function () {
     }
     if (feature.properties.name !== undefined) {
       description = feature.properties.name;
-    }  
+    }
     if (feature.properties.image !== undefined) {
-        description = `<div class="card">
+      description = `<div class="card">
         <img class="card-img-top" src="${feature.properties.image}" />
         <div class="card-body">
           <div class="card-text">${description}</div>
