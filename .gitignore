@@ -3,9 +3,13 @@ lambda.zip
 deploy/*
 .DS_Store/*
 .DS_Store
+deploy
 deploy-button
 local.env
 .idea/
 __pycache__/
 **/.config
+**/config.js
 **/*.log
+**/node_modules
+.vscode/
