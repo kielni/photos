@@ -3,64 +3,53 @@ import glob
 from datetime import datetime, timedelta
 import os
 import subprocess
-from typing import List, Set
+from typing import List
 
-from util.photos import rename_jpg, rename_mp4, remove_old, process_live_photos
-
+from util.photos import rename_jpg, rename_mp4, process_live_photos, sync_to_s3
+from util.apple import setup_last_month
 
 """
 set in environment
     PHOTOS_ROOT = root of photos tree (~/Pictures)
     ICLOUD_USERNAME = username for downloading LivePhotos
-    S3_PHOTOS_BUCKET = s3 bucket for photos and videos
+    S3_PHOTOS_BUCKET = S3 bucket for photos and videos
 
 assumes directory structure under PHOTOS_ROOT
-    amazon-keep = synced to Amazon Photos album
-    amazon-phone = synced to phone
     icloud-live-photos = download directory for Live Photos
+    review = copy from Photos library to here
     staging = selected photos and videos to keep
+    keep = files to keep and sync to external storage
 
 source local.env
 python monthly.py --prep - download LivePhotos to icloud-live-photos
-python monthly.py - copy photos from staging to Amazon Photos and S3
+python monthly.py - copy photos from staging to Ente and S3
 """
 
 ROOT = os.environ["PHOTOS_ROOT"]
+REVIEW = f"{ROOT}/review"
+STAGING = f"{ROOT}/staging"
+KEEP = f"{ROOT}/keep"
 
 
 def monthly_prep():
-    """Download Live Photos, re-encode to mp4 without audio, and write to icloud-live-photos/review.
+    """Copy photos from last month from Photos library to staging.
+
+    Download Live Photos, re-encode to mp4 without audio, and write to icloud-live-photos/review.
 
     Use icloudpd to download Live Photos.
     Use process_live_photos to convert photos from previous months to mp4 in icloud-photos/review
     icloudpd --directory $PHOTOS_ROOT/icloud-live-photos --username $ICLOUD_USERNAME -a Live --until-found 3
     """
     print("start monthly_prep")
-    if not os.environ.get("ICLOUD_USERNAME"):
-        raise Exception("ICLOUD_USERNAME must be set in environment")
-    live_photos = f"{ROOT}/icloud-live-photos"
-    # download LivePhotos
-    command = [
-        "icloudpd",
-        "--directory",
-        live_photos,
-        "--username",
-        os.environ["ICLOUD_USERNAME"],
-        "-a",
-        "Live",
-        "--until-found",
-        "3",
-    ]
-    print(f"downloading LivePhotos\n{' '.join(command)}")
-    """
-    process = subprocess.run(
-        command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        universal_newlines=True,
+    setup_last_month(REVIEW)
+
+    print("download LivePhotos: ")
+    username = os.environ.get("ICLOUD_USERNAME", "ICLOUD_USERNAME")
+    # this doesn't work well with 2FA
+    print(
+        f"\ticloudpd --directory ~/Pictures/icloud-live-photos --username {username} -a Live --until-found 3"
     )
-    print(process.stdout)
-    """
+    live_photos = f"{ROOT}/icloud-live-photos"
     # process LivePhotos from this month and last month
     for dt in [datetime.now() - timedelta(days=30), datetime.now()]:
         process_live_photos(
@@ -70,58 +59,25 @@ def monthly_prep():
     print(f"\nreview {len(photos)} LivePhotos in {live_photos}/review")
 
 
-def s3_sync(filenames: List[str], dry_run: bool):
-    keep_dir = f"{ROOT}/amazon-keep"
-    os.chdir(keep_dir)
-    s3_bucket = os.environ.get("S3_PHOTOS_BUCKET")
-    print(f"\nsync files in {keep_dir} to S3")
-    if not filenames:
-        print(f"no files in {keep_dir}")
-        return
-    for idx, fn in enumerate(filenames):
-        print(f"{idx+1}/{len(filenames)}")
-        # convert to relative path
-        fn = fn.replace(keep_dir + "/", "")
-        command = ["aws", "s3", "cp", fn, f"s3://{s3_bucket}/{fn}", "--no-progress"]
-        print(" ".join(command))
-        if not dry_run:
-            process = subprocess.run(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                universal_newlines=True,
-            )
-            print(process.stdout)
+
 
 def monthly(dry_run: bool):
-    """Put files to keep in `staging`, then call this to rename and sync to Amazon Photos and S3.
+    """Put files to keep in `staging`, then call this to rename and sync to Ente and S3.
 
     Rename jpg files in `staging` to yyyy-mm-dd_hhmmss_index.jpg
     Rename mp4 files in `staging` to yyyy-mm-dd_index.mp4
-    Move files to `amazon-keep` to sync to Amazon Photos album
-    Sync files from `amazon-keep` to s3
-    Remove files under `amazon-phone` that are older than 730 days
+    Move files to `keep` to sync to external storage
+    Sync files from `keep` to S3
     """
-    staging_dir = f"{ROOT}/staging"
-    keep_dir = f"{ROOT}/amazon-keep"
-    phone_dir = f"{ROOT}/amazon-phone"
-
-    os.chdir(staging_dir)
+    os.chdir(STAGING)
     div = "\n" + ("-" * 80) + "\n"
-    print(f"{div}renaming and moving files from {staging_dir} to {keep_dir}{div}")
-    filenames = rename_jpg(f"{keep_dir}", True, dry_run)
+    print(f"{div}renaming and moving files from {STAGING} to {KEEP}{div}")
+    filenames = rename_jpg(f"{KEEP}", True, dry_run)
     print(f"moved {len(filenames)} jpg files")
-    video_filenames = rename_mp4(f"{keep_dir}", True, dry_run)
+    video_filenames = rename_mp4(f"{KEEP}", True, dry_run)
     print(f"moved {len(video_filenames)} mp4 files")
     filenames += video_filenames
-
-    os.chdir(phone_dir)
-    since_dt = datetime.now() - timedelta(days=730)
-    print(
-        f"{div}remove files in {phone_dir} older than {since_dt.strftime('%Y-%m-%d')}{div}"
-    )
-    remove_old(since_dt, datetime(2000, 1, 1), dry_run)
-    s3_sync(filenames, dry_run)
+    sync_to_s3(KEEP, os.environ.get("S3_PHOTOS_BUCKET"), filenames, dry_run)
 
 
 if __name__ == "__main__":
@@ -131,11 +87,11 @@ if __name__ == "__main__":
         "--dry_run", help="print actions but do not apply", action="store_true"
     )
     parser.add_argument(
-        "--prep", help="prepare: download and re-encode Live Photos", action="store_true"
+        "--prep",
+        help="prepare: download and re-encode Live Photos",
+        action="store_true",
     )
-    parser.add_argument(
-        "--s3", help="sync to s3", action="store_true"
-    )
+    parser.add_argument("--s3", help="sync to S3", action="store_true")
     args = parser.parse_args()
     print(args)
     if args.prep:

@@ -11,6 +11,32 @@ from exif import Image
 from dateutil import parser as date_parser
 
 
+def to_mp4(input_path: str, output_path: str, size: Optional[str] = None) -> str:
+    """Use ffmpeg to convert a .mov to .mp4.
+
+    -i input file
+    -an drop audio track
+    -vcodec h264 use H.264 encoding
+    -s target image size
+    -y overwrite destination file
+    """
+    size_params = ["-s", size] if size else []
+    command = (
+            ["ffmpeg", "-i", input_path, "-an"]
+            + size_params
+            + [output_path, "-y", "-loglevel", "error"]
+    )
+    print(" ".join(command))
+    process = subprocess.run(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        universal_newlines=True,
+    )
+    print(process.stdout)
+    return output_path
+
+
 def process_live_photos(root: str, dest: str, size: Optional[str] = None):
     """Find MOV files under root, and use ffmpeg to resize, drop audio, and rename.
 
@@ -39,25 +65,7 @@ def process_live_photos(root: str, dest: str, size: Optional[str] = None):
         index = match.group(1) if match else str(idx)
         # dest/2021-07-07_3417.mp4
         out_fn = f"{dest}/{dt_str}_{index}.mp4"
-        # -i input file
-        # -an drop audio track
-        # -vcodec h264 use H.264 encoding
-        # -s target image size
-        # -y overwrite destination file
-        size_params = ["-s", size] if size else []
-        command = (
-            ["ffmpeg", "-i", file_path, "-an"]
-            + size_params
-            + [out_fn, "-y", "-loglevel", "error"]
-        )
-        print(" ".join(command))
-        process = subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            universal_newlines=True,
-        )
-        print(process.stdout)
+        to_mp4(file_path, out_fn, size)
         print(f"wrote {out_fn}")
 
 
@@ -229,3 +237,79 @@ def remove_old(
         if not dry_run:
             os.remove(fn)
     print(f"remove {remove}")
+
+def extract_caption(fn: str) -> str:
+    with open(fn, "rb") as image_file:
+        img = Image(image_file)
+    try:
+        return img.image_description.strip()
+    except Exception:
+        return ""
+
+def mp4_tag(filename: str) -> str:
+    html = """<div class="col">
+          <div class="card">
+            <video class="card-img-top%s" loop muted playsinline autoplay>
+              <source src="mp4/%s">
+            </video>
+            <div class="card-body">
+              <p class="card-text">%s</p>
+            </div>
+          </div>
+        </div>
+        """
+def jpg_tag(filename: str) -> str:
+    portrait = {}
+    panorama = {}
+    # main
+    text = '\n    <div class="card-body%s"><div class="card-text">%s</div></div>\n'
+    html = """<div class="col">
+      <div class="card">
+        <img class="card-img-top%s" src="img/%s">%s
+      </div>
+    </div>"""
+    meta = {}  # TODO:
+    img_html = video_html = ""  # TODO:
+
+    for key in sorted(meta.keys()):
+        name = key.split(".")[0]
+        extra = ""
+        if name in portrait:
+            extra = " portrait"
+        if name in panorama:
+            extra = " panorama"
+        caption = text % (extra, meta[key]) if meta[key] else ""
+        html = ""
+        if "jpg" in key:
+            html = img_html % (extra, key, caption)
+        if "mp4" in key:
+            html = video_html % (extra, key, key)
+        # print('<!-- %s |%s| -->' % (key, caption))
+        print(html)
+
+    print("\n")
+
+def filenames_to_html(filenames: List[str]):
+    meta = {}
+    for fn in [f for f in filenames if f.endswith("jpg")]:
+        meta[fn] = extract_caption(fn)
+
+def sync_to_s3(path: str, s3_bucket: str, filenames: List[str], dry_run: bool = False):
+    os.chdir(path)
+    print(f"\nsync files in {path} to s3://{s3_bucket}")
+    if not filenames:
+        return
+    for idx, fn in enumerate(filenames):
+        print(f"{idx+1}/{len(filenames)}")
+        # convert to relative path
+        fn = fn.replace(f"{path}/", "")
+        command = ["aws", "s3", "cp", fn, f"s3://{s3_bucket}/{fn}", "--no-progress"]
+        print(" ".join(command))
+        if not dry_run:
+            process = subprocess.run(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                universal_newlines=True,
+            )
+            print(process.stdout)

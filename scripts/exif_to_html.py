@@ -14,7 +14,7 @@ def xmp(fn):
         data = imgf.read()
     xmp_start = data.find(b"<x:xmpmeta")
     xmp_end = data.find(b"</x:xmpmeta")
-    return data[xmp_start : xmp_end + 12].decode("utf-8")
+    return data[xmp_start : xmp_end + 12].decode("utf-8")  # noqa: E203
 
 
 def extract_xmp(fn):
@@ -32,7 +32,7 @@ def extract_caption(fn):
         img = Image(image_file)
     try:
         return img.image_description.strip()
-    except:
+    except Exception:
         return ""
 
 
@@ -44,13 +44,11 @@ def main():
     meta = {}
     for fn in args.filenames:
         meta[fn] = extract_caption(fn) if "jpg" in fn else ""
-        if not meta[fn]:
-            meta[fn] = extract_xmp(fn) if "jpg" in fn else ""
-    video = {}
+
     portrait = {}
     panorama = {}
     # main
-    text = '\n    <div class="card-body%s"><div class="card-text">%s</div></div>\n'
+    text = '\n    <div class="card-body%s"><div class="card-text">%s</div></div>'
     img_html = """<div class="col">
   <div class="card">
     <img class="card-img-top%s" src="img/%s">%s
@@ -59,7 +57,7 @@ def main():
     video_html = """<div class="col">
   <div class="card">
     <video class="card-img-top%s" loop muted playsinline autoplay>
-      <source src="mp4/%s">
+      <source src="img/%s">
     </video>
     <div class="card-body">
       <p class="card-text">%s</p>

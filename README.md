@@ -37,9 +37,9 @@ De-dupe
   - Copy photos from phones (automatically) and waterproof camera (manually) to a trip directory on Mac: <code>~/Pictures/trips/_year-destination_/all</code>.
   - Review photos with ACDSee and add a rating to the good ones.
   - Copy rated photos to <code>~/Pictures/trips/_year-destination_/album</code> directory.
-  - Standardize filenames to `datetime-index.ext`.
+  - Standardize filenames to `datetime-index.ext`: `python rename_exif_date.py`
+  - Re-encode LivePhotos: `python mov_to_mp4.py`
   - Crop, edit, and add captions to Exif metadata.
-  - Copy from `album` to <code>amazon-keep/_year-destination_</code> to sync to Amazon Photos.
   - Sync `album` to <code>s3://photos-bucket/_year-destination_</code> for archiving.
   - Resize for website to <code>~/Pictures/trips/_year-destination_/web</code> directory.
   - Generate HTML by merging a template with filenames and captions from Exif metadata.
@@ -188,3 +188,21 @@ python -m http.server
 ```
 
 Publish: sync `web` to <code>s3://website-bucket/_year-destination_</code>
+
+aws s3 cp s3://$WEB_BUCKET/ s3://$WEB_BUCKET/ --exclude "*" --include "*.jpg" --include "*.png" --include "*.mp4" --recursive --metadata-directive REPLACE --acl public-read --cache-control max-age=2592000,public --dry-run
+
+
+https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/getting-started-cloudfront-overview.html
+
+GeoJSON from EXIF: `python to_geojson.py filename --lat S --trailing_comma`
+
+```
+ls img/*.jpg | xargs -L 1 python ~/home/photos/scripts/to_geojson.py --lat S --trailing_comma | tee photo.json
+cp tanzania.json tanzania_gz.json
+gzip tanzania_gz.json
+mv tanzania_gz.json.gz tanzania_gz.json
+aws s3 cp tanzania.json s3://paulandkimberly.com/2024-Tanzania/tanzania.json --content-encoding gzip --content-type application/json
+aws s3 cp tanzania.json s3://www.paulandkimberly.com/2024-Tanzania/tanzania.json --content-encoding gzip --content-type application/json
+aws s3 cp tanzania_gz.json s3://paulandkimberly.com/2024-Tanzania/tanzania_gz.json --content-encoding gzip --content-type application/json
+aws s3 cp tanzania_gz.json s3://www.paulandkimberly.com/2024-Tanzania/tanzania_gz.json --content-encoding gzip --content-type application/json
+```

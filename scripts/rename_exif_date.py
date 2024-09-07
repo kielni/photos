@@ -14,7 +14,7 @@ from exif import Image
       dscn0519.jpg -> 20200301_1200_0519.jpg
     also change jpeg to jpg
 
-    python ~/work/home/photos/scripts/rename_exif_date.py --dest ~/Pictures/amazon-keep --year
+    python ~/home/photos/scripts/rename_exif_date.py --dest ~/Pictures/amazon-keep --year
 """
 
 
@@ -35,7 +35,6 @@ def rename_exif(orig: str, dest: str, year_prefix: str, dry_run: bool):
         return
     prefix = ""
     if dest:
-        filename = fn.split("/")[-1]
         if year_prefix:
             prefix = f"{dest}/{fn[:4]}/"
             if not os.path.exists(dest):
@@ -54,11 +53,13 @@ def rename_exif(orig: str, dest: str, year_prefix: str, dry_run: bool):
 
 
 def main(dest: str, year_prefix: bool, dry_run: bool):
-    for idx, fn in enumerate(glob.glob("*.jpg") + glob.glob("*.jpeg") + glob.glob("*.JPG")):
+    for idx, fn in enumerate(
+        glob.glob("*.jpg") + glob.glob("*.jpeg") + glob.glob("*.JPG")
+    ):
         try:
             rename_exif(fn, dest, year_prefix, dry_run)
-        except Exception as exc:
-            print("error renaming {fn}")
+        except Exception:
+            print(f"error renaming {fn}")
             traceback.print_exc()
 
 
@@ -67,7 +68,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--dest", help="move files to this path; if not specified, rename in place"
     )
-    parser.add_argument("--year", help="add year to end of dest path", action="store_true")
+    parser.add_argument(
+        "--year", help="add year to end of dest path", action="store_true"
+    )
     parser.add_argument("--dry_run", help="don't actually rename", action="store_true")
     args = parser.parse_args()
     main(args.dest, args.year, args.dry_run)
