@@ -5,6 +5,7 @@ import re
 import shutil
 from typing import List, Dict, Any, Set, Optional
 
+import boto3
 from bs4 import BeautifulSoup
 from jinja2 import Environment, FileSystemLoader
 
@@ -340,11 +341,28 @@ def setup(path: str):
     """
 
 
+def sync_to_s3(path: str):
+    """Sync web directory to S3_WEB_BUCKET."""
+    # use boto3 to sync all files in path to S3_WEB_BUCKET/path
+    client = boto3.client("s3")
+    bucket = os.environ.get("S3_WEB_BUCKET")
+    bucket_dir = path.split("/")[-1]
+    extra_args = {
+        "ACL": "public-read",
+        "StorageClass": "STANDARD_IA",
+    }
+    for filename in tqdm(glob.glob(f"{path}/web/*")):
+        key = bucket_dir + filename.replace(path, "")
+        client.upload_file(filename, bucket, key, ExtraArgs=extra_args)
+
+
 def main(path: str, op: str, page_name: Optional[str]):
     if op == "setup":
         setup(path)
     elif op == "update":
         update(path, page_name)
+    elif op == "sync":
+        sync_to_s3(path)
     else:
         print(f"Unknown operation: {op}")
 
@@ -355,8 +373,9 @@ if __name__ == "__main__":
     """
     setup - create directory layout, resize, render HTML, create GeoJSON
     update - resize, merge HTML, write GeoJSON
+    sync - sync tp S3_WEB_BUCKET
     """
-    parser.add_argument("op", type=str, help="setup, update")
+    parser.add_argument("op", type=str, help="setup, update, sync")
     parser.add_argument("--page", type=str, help="update only specified page")
     args = parser.parse_args()
     main(args.path, args.op, args.page)
