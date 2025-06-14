@@ -45,7 +45,6 @@ def export_live_photos(output_dir: str, results: Iterable[PhotoInfo]):
             overwrite=True,
             live_photo=False,
         )
-        # mp4_path = mov_path.replace(".mov", ".mp4")
         mp4_filename = to_mp4(mov_path)
         print(f"wrote Live Photo to {mp4_filename}")
         os.remove(mov_path)

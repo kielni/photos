@@ -1,6 +1,7 @@
 lint:
 	black *.py */*.py
 	flake8 *.py */*.py
+	mypy *.py */*.py
 
 # copy favorited photos and live photos from the last 45 days to staging directory
 # re-encode mov to mp4

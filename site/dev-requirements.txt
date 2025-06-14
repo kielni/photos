@@ -1,3 +1,0 @@
-types-beautifulsoup4==4.12.0.20240511
-types-Pillow==10.2.0.20240822
-types-PyYAML==6.0.12.20240808

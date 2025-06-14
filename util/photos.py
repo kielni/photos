@@ -133,7 +133,7 @@ def exif_datetime(fn: str) -> datetime:
                     d, t = img[key].split(" ")
                     break
             if not d:
-                raise ValueError(f"no exif date")
+                raise ValueError("no exif date")
             return date_parser.parse(f"{d.replace(':', '-')} {t}")
         except Exception as exc:
             print(f"{fn}\terror parsing: {exc}")
@@ -332,18 +332,17 @@ def extract_caption(fn: str) -> str:
 
 
 def mp4_tag(filename: str) -> str:
-    # html = """<div class="col">
-    #       <div class="card">
-    #         <video class="card-img-top%s" loop muted playsinline autoplay>
-    #           <source src="mp4/%s">
-    #         </video>
-    #         <div class="card-body">
-    #           <p class="card-text">%s</p>
-    #         </div>
-    #       </div>
-    #     </div>
-    #     """
-    return ""
+    return f"""<div class="col">
+           <div class="card">
+             <video class="card-img-top%s" loop muted playsinline autoplay>
+               <source src="{filename}">
+             </video>
+             <div class="card-body">
+               <p class="card-text">%s</p>
+             </div>
+           </div>
+         </div>
+    """
 
 
 def jpg_tag(filename: str) -> str:

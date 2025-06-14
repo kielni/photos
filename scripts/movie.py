@@ -69,7 +69,7 @@ def create_4up(
     # v_spacer = ColorClip((WIDTH, 5), color=(0, 0, 0)).with_duration(DURATION)
     slides = []
     # split filenames into sets of 4
-    groups = [filenames[i:i + 4] for i in range(0, len(filenames), 4)]
+    groups = [filenames[i : i + 4] for i in range(0, len(filenames), 4)]
     log.info(f"{caption}\t{len(filenames)} files on {len(groups)} slides")
     count = 0
     prefix = input_path if input_path.endswith("/") else input_path + "/"
