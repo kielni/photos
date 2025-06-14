@@ -77,7 +77,7 @@ def create_4up(
         log.info(f"{count} / {len(filenames)}")
         log.info(f"slide {group_idx+1}\t{len(group)} files")
         count += len(group)
-        group.extend([None] * (4 - len(group)))
+        group.extend(["" for _ in range(4 - len(group))])
         (file1, file2, file3, file4) = group
         # 1: full screen
         if file2 is None:

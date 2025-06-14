@@ -85,16 +85,22 @@ def process_live_photos(root: str, dest: str, size: Optional[str] = None):
     """
     print(f"processing Live Photos from {root} to {dest}")
     files = sorted(glob.glob(f"{root}/**/*.MOV", recursive=True))
+    today_str = datetime.now().strftime("%Y-%m-%d")
     for idx, file_path in enumerate(files):
         print(f"{idx+1}/{len(files)} {file_path}")
         # 2021/07/04/IMG_3417.MOV -> 2021-07-04
-        dt_str = "-".join(re.search(r"(\d+)/(\d+)/(\d+)", file_path).groups())
+        if match := re.search(r"(\d+)/(\d+)/(\d+)", file_path):
+            dt_str = "-".join(match.groups())
+        else:
+            print(f"no date in {file_path}; using today")
+            dt_str = today_str
         fn = file_path.split("/")[-1]  # IMG_3417.MOV
         match = re.search(r"_(\d+)\.", fn)
         index = match.group(1) if match else str(idx)
+        mp4_out_fn = to_mp4(file_path, size)
         # dest/2021-07-07_3417.mp4
         out_fn = f"{dest}/{dt_str}_{index}.mp4"
-        to_mp4(file_path, out_fn, size)
+        os.rename(mp4_out_fn, out_fn)
         print(f"wrote {out_fn}")
 
 
@@ -346,8 +352,8 @@ def mp4_tag(filename: str) -> str:
 
 
 def jpg_tag(filename: str) -> str:
-    portrait = {}
-    panorama = {}
+    portrait: dict[str, str] = {}
+    panorama: dict[str, str] = {}
     # main
     text = '\n    <div class="card-body%s"><div class="card-text">%s</div></div>\n'
     html = """<div class="col">
@@ -355,7 +361,7 @@ def jpg_tag(filename: str) -> str:
         <img class="card-img-top%s" src="img/%s">%s
       </div>
     </div>"""
-    meta = {}  # TODO:
+    meta: dict[str, str] = {}  # TODO:
     img_html = video_html = ""  # TODO:
 
     for key in sorted(meta.keys()):
@@ -375,6 +381,7 @@ def jpg_tag(filename: str) -> str:
         print(html)
 
     print("\n")
+    return ""
 
 
 def filenames_to_html(filenames: List[str]):

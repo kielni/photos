@@ -59,7 +59,7 @@ def merge_cards(filename: str, cards: List[str]) -> str:
     cards_by_id: Dict[str, BeautifulSoup] = {}
     for card in parsed_cards:
         el = card.find(attrs=attrs)
-        card_id = el.get("id")
+        card_id = str(el.get("id"))
         card_ids.add(card_id)
         cards_by_id[card_id] = el
     with open(filename, "r") as f:
@@ -115,7 +115,7 @@ def read_exif_resize(filename: str, size: int) -> dict:
         img = Image.open(filename)
         # filename is full path
         new_filename = filename.replace("/album/", "/web/img/")
-        ImageOps.contain(img, [size, size]).save(new_filename)
+        ImageOps.contain(img, (size, size)).save(new_filename)
         context["orientation"] = "landscape" if img.width > img.height else "portrait"
         exif_data = img.getexif()
         # context["description"] = exif_data.get(Base.ImageDescription, "").strip()
@@ -351,7 +351,7 @@ def setup(path: str):
     """
 
 
-def sync_to_s3(path: str, exclude: str):
+def sync_to_s3(path: str, exclude: Optional[str]):
     """Sync web directory to S3_WEB_BUCKET."""
     # use boto3 to sync all files in path to S3_WEB_BUCKET/path
     client = boto3.client("s3")

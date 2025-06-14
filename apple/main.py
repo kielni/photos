@@ -3,7 +3,7 @@ import glob
 import os
 import re
 from datetime import datetime, timedelta
-from typing import List, Iterable, Optional
+from typing import Optional
 
 import osxphotos
 from osxphotos import QueryOptions, ExifTool, PhotoInfo
@@ -32,7 +32,7 @@ def filename_from_date(pi: PhotoInfo, ext: Optional[str] = None) -> str:
     return f"{filename}.{ext}" if ext else filename
 
 
-def export_live_photos(output_dir: str, results: Iterable[PhotoInfo]):
+def export_live_photos(output_dir: str, results: list[PhotoInfo]):
     print(f"Found {len(results)} live photos")
     for photo in results:
         base_filename = filename_from_date(photo)
@@ -50,7 +50,7 @@ def export_live_photos(output_dir: str, results: Iterable[PhotoInfo]):
         os.remove(mov_path)
 
 
-def export_photos_with_metadata(output_dir: str, results: Iterable[PhotoInfo]):
+def export_photos_with_metadata(output_dir: str, results: list[PhotoInfo]):
     print(f"Found {len(results)} photos")
     for photo in results:
         filename = filename_from_date(photo, "jpg")
@@ -61,7 +61,7 @@ def export_photos_with_metadata(output_dir: str, results: Iterable[PhotoInfo]):
         )
         # copy metadata from library and write to EXIF
         with ExifTool(f"{full_filename}", flags=["-m"]) as exif_tool:
-            keywords: List[str] = []
+            keywords: list[str] = []
             persons = [p for p in photo.persons if p != "_UNKNOWN_"]
             if persons:
                 print(f"\tpersons={persons}")
@@ -104,7 +104,7 @@ def sync(root: str, bucket: str):
     # move *.mp4 and *.jpg from root/staging to root/keep
     keep_dir = f"{root}/keep"
     staging_dir = f"{root}/staging"
-    filenames: List[str] = []
+    filenames: list[str] = []
     for full_filename in glob.glob(f"{staging_dir}/*.mp4") + glob.glob(
         f"{staging_dir}/*.jpg"
     ):
@@ -136,7 +136,12 @@ if __name__ == "__main__":
     parser.add_argument("--bucket", type=str)
     args = parser.parse_args()
     _output = args.root or f"/Users/{os.environ.get('USER')}/Pictures"
+    _bucket = args.bucket or os.environ.get("S3_PHOTOS_BUCKET")
+    if not _bucket:
+        raise ValueError(
+            "S3 bucket not set: add --bucket or set S3_PHOTOS_BUCKET in environment"
+        )
     if args.sync:
-        sync(_output, args.bucket or os.environ.get("S3_PHOTOS_BUCKET"))
+        sync(_output, _bucket)
     else:
         export(f"{_output}/staging", args.days)

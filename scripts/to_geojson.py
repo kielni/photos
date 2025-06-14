@@ -1,5 +1,6 @@
 import argparse
 import json
+from typing import Any
 
 from exif import Image
 
@@ -23,7 +24,7 @@ def main(filename: str, lat_hemi: str, lng_hemi: str, trailing_comma: bool):
     lat = (lat_deg + (lat_min / 60 + lat_sec / 3600)) * lat_multiplier
     lng = (lng_deg + (lng_min / 60 + lng_sec / 3600)) * lng_multiplier
     altitude = img.gps_altitude if hasattr(img, "gps_altitude") else 0
-    out = {
+    out: dict[str, Any] = {
         "geometry": {"coordinates": [lng, lat, altitude], "type": "Point"},
         "properties": {"image": filename, "icon": "photo"},
         "type": "Feature",
