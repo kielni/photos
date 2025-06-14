@@ -15,16 +15,9 @@ from util.photos import rename_exif
     python ~/home/photos/scripts/rename_exif_date.py --dest ~/Pictures/amazon-keep --year
 """
 
-"""
-from util.photos import rename_exif
-rename_exif(filename, year_prefix=False)
-"""
-
 
 def main(dest: str, year_prefix: bool, dry_run: bool):
-    for idx, fn in enumerate(
-        glob.glob("*.jpg") + glob.glob("*.jpeg") + glob.glob("*.JPG")
-    ):
+    for fn in glob.glob("*.jpg") + glob.glob("*.jpeg") + glob.glob("*.JPG"):
         try:
             rename_exif(fn, dest, year_prefix, dry_run)
         except Exception:
