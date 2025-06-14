@@ -15,11 +15,11 @@ usage:
 set in environment
     S3_PHOTOS_BUCKET = S3 bucket for photos and videos
 
-setup: python apple/main.py ~/Pictures/staging
+setup: python apple/main.py
   - copy favorited photos and live photos from the last 45 days to staging directory
   - re-encode mov to mp4
 
-sync: python apple/main.py ~/Pictures/staging --sync
+sync: python apple/main.py --sync
   - copy photos to S3 and ente sync folder
 """
 
@@ -45,8 +45,8 @@ def export_live_photos(output_dir: str, results: Iterable[PhotoInfo]):
             overwrite=True,
             live_photo=False,
         )
-        mp4_path = mov_path.replace(".mov", ".mp4")
-        mp4_filename = to_mp4(mov_path, mp4_path)
+        # mp4_path = mov_path.replace(".mov", ".mp4")
+        mp4_filename = to_mp4(mov_path)
         print(f"wrote Live Photo to {mp4_filename}")
         os.remove(mov_path)
 
@@ -85,10 +85,10 @@ def export_photos_with_metadata(output_dir: str, results: Iterable[PhotoInfo]):
 
 
 def export(output_dir: str, days: int):
-    print(f"Export last {days} days to {output_dir}")
+    from_dt = datetime.now() - timedelta(days=days)
+    print(f"Export photos since {from_dt.strftime('%m/%d/%Y')} to {output_dir}")
     print("Loading PhotosDB..")
     photosdb = osxphotos.PhotosDB()
-    from_dt = datetime.now() - timedelta(days=days)
     export_photos_with_metadata(
         output_dir, photosdb.query(QueryOptions(favorite=True, from_date=from_dt))
     )
@@ -97,9 +97,7 @@ def export(output_dir: str, days: int):
         output_dir,
         photosdb.query(QueryOptions(favorite=True, from_date=from_dt, live=True)),
     )
-    print(
-        f"\nreview photos in {output_dir}, then\npython apple/main.py {output_dir} --sync"
-    )
+    print(f"\nreview photos in {output_dir}, then\npython apple/main.py --sync")
 
 
 def sync(root: str, bucket: str):

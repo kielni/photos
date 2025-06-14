@@ -146,8 +146,14 @@ step 2: use the video tag
 step 3: test on a real webserver
 
 - must support range requests
+ 
+```
+npm install -g http-server
+http-server --cors
+```
 
   `GET /trips/img/013_IMG_1484.mp4 HTTP/1.1`
   `Range: bytes=0-1`
 
-- `python -m SimpleHTTPServer` doesn't; Apache and AWS S3 bucket hosting do
+
+

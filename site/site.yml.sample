@@ -1,0 +1,25 @@
+
+# required for index
+domain: https://test.com
+destination: Test
+title: Test 2024
+title_tagline: "People visit Test"
+highlight_image: 20240101.jpg
+path: 2024-Test
+img_size: 800
+
+# required for each page: id, text, start, end
+
+pages:
+  - 
+    id: a_to_b
+    text: "From point A to B"
+    start: 20240101
+    end: 20240102_1200
+
+  - 
+    id: point_b
+    text: "Point B"
+    start: 20240102_1201
+    end: 20240109_2359
+

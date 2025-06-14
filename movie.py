@@ -2,7 +2,6 @@ import argparse
 from collections import defaultdict
 import glob
 import logging
-from typing import List
 from moviepy import (
     Clip,
     ColorClip,
@@ -67,10 +66,10 @@ def create_4up(
     h_spacer = ColorClip((150, int(HEIGHT / 2)), color=(0, 0, 0)).with_duration(
         DURATION
     )
-    v_spacer = ColorClip((WIDTH, 5), color=(0, 0, 0)).with_duration(DURATION)
+    # v_spacer = ColorClip((WIDTH, 5), color=(0, 0, 0)).with_duration(DURATION)
     slides = []
     # split filenames into sets of 4
-    groups = [filenames[i : i + 4] for i in range(0, len(filenames), 4)]
+    groups = [filenames[i:i + 4] for i in range(0, len(filenames), 4)]
     log.info(f"{caption}\t{len(filenames)} files on {len(groups)} slides")
     count = 0
     prefix = input_path if input_path.endswith("/") else input_path + "/"

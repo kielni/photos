@@ -15,6 +15,8 @@ from PIL.ExifTags import GPS
 from tqdm import tqdm
 import yaml
 
+from util.photos import extract_caption
+
 """
 site.yml
   path - path leaf ("2024-Tanzania")
@@ -108,6 +110,7 @@ def degrees_to_decimal(
 def read_exif_resize(filename: str, size: int) -> dict:
     """Extract EXIF data from filename and write resized image to web/img."""
     context: Dict[str, Any] = {"error": None}
+    # !!! album
     try:
         img = Image.open(filename)
         # filename is full path
@@ -115,8 +118,12 @@ def read_exif_resize(filename: str, size: int) -> dict:
         ImageOps.contain(img, [size, size]).save(new_filename)
         context["orientation"] = "landscape" if img.width > img.height else "portrait"
         exif_data = img.getexif()
-        context["description"] = exif_data.get(Base.ImageDescription, "").strip()
+        # context["description"] = exif_data.get(Base.ImageDescription, "").strip()
+        context["description"] = extract_caption(filename)
         gps_info = exif_data.get_ifd(Base.GPSInfo)
+        if gps_info.get(GPS.GPSLatitude) is None:
+            print(f"missing GPS data for {filename}")
+            return context
         degrees, minutes, seconds = gps_info.get(GPS.GPSLatitude)  # (6.0, 45.0, 54.34)
         ref = gps_info.get(GPS.GPSLatitudeRef)  # 'S'
         context["latitude"] = degrees_to_decimal(degrees, minutes, seconds, ref)
@@ -196,9 +203,13 @@ def gather_page_data(path: str, min_fn: str, max_fn: str, img_size: int) -> List
     get description, latitude, longitude, and altitude from EXIF data.
     Resize and copy files from album to web/img.
     """
-    filenames = sorted(os.listdir(f"{path}/album"))
+    full_filenames = sorted(
+        glob.glob(f"{path}/album/*.jpg") + glob.glob(f"{path}/album/*.mp4")
+    )
+    filenames = [f.split("/")[-1] for f in full_filenames]
     # get filenames between min_fn and max_fn
     filenames = [f for f in filenames if min_fn <= f <= max_fn]
+    print(f"{len(filenames)} files: {filenames}")
     messages: List[str] = []
     contexts: List[dict] = []
     for filename in tqdm(filenames, desc="gather"):
@@ -310,25 +321,24 @@ def setup(path: str):
 
     Initialize local git in web/ and check in files.
     """
-    # create web directory under path if it does not exist
-    try:
-        print(f"Creating {path}/web")
-        os.mkdir(f"{path}/web")
-    except FileExistsError:
-        pass
-    # create img/ directory under web if it does not exist
-    try:
-        os.mkdir(f"{path}/web/img")
-    except FileExistsError:
-        pass
+    for subdir in ["web", "web/img", "templates"]:
+        if not os.path.exists(f"{path}/{subdir}"):
+            print(f"Creating {path}/{subdir}")
+            os.mkdir(f"{path}/{subdir}")
     print("Copying templates")
+    # templates/ is relative to the path of this script
+    curr_path = os.path.dirname(os.path.abspath(__file__))
     for pattern in ["*.png", "*.html", "*.js", "*.css"]:
-        for filename in glob.glob(f"templates/{pattern}"):
+        for filename in glob.glob(f"{curr_path}/templates/{pattern}"):
             shutil.copy(filename, f"{path}/web")
-    for filename in glob.glob("templates/*.jinja2"):
+    for filename in glob.glob(f"{curr_path}/templates/*.jinja2"):
         shutil.copy(filename, f"{path}/templates")
-    shutil.copytree("templates/support", f"{path}/web/support", dirs_exist_ok=True)
-    shutil.copytree("templates/icons", f"{path}/web/icons", dirs_exist_ok=True)
+    shutil.copytree(
+        f"{curr_path}/templates/support", f"{path}/web/support", dirs_exist_ok=True
+    )
+    shutil.copytree(
+        f"{curr_path}/templates/icons", f"{path}/web/icons", dirs_exist_ok=True
+    )
     render_pages(path, initial=True)
 
     # setup git
@@ -341,28 +351,51 @@ def setup(path: str):
     """
 
 
-def sync_to_s3(path: str):
+def sync_to_s3(path: str, exclude: str):
     """Sync web directory to S3_WEB_BUCKET."""
     # use boto3 to sync all files in path to S3_WEB_BUCKET/path
     client = boto3.client("s3")
     bucket = os.environ.get("S3_WEB_BUCKET")
     bucket_dir = path.split("/")[-1]
-    extra_args = {
-        "ACL": "public-read",
-        "StorageClass": "STANDARD_IA",
+    content_type = {
+        "html": "text/html",
+        "json": "application/json",
+        "geojson": "application/geo+json",
+        "css": "text/css",
+        "js": "application/javascript",
+        "jpg": "image/jpeg",
+        "png": "image/png",
+        "mp4": "video/mp4",
     }
-    for filename in tqdm(glob.glob(f"{path}/web/*")):
-        key = bucket_dir + filename.replace(path, "")
+    content_encoding = {
+        "json": "gzip",
+    }
+    for filename in tqdm(glob.glob(f"{path}/web/**", recursive=True)):
+        # for filename in glob.glob(f"{path}/web/**", recursive=True):
+        if os.path.isdir(filename):
+            continue
+        if exclude and re.search(exclude, filename):
+            continue
+        key = bucket_dir + filename.replace(path, "").replace("web/", "")
+        ext = filename.split(".")[-1]
+        extra_args = {
+            "ACL": "public-read",
+            "StorageClass": "STANDARD_IA",
+            "ContentType": content_type.get(ext, "application/octet-stream"),
+        }
+        if ext in content_encoding:
+            extra_args["ContentEncoding"] = content_encoding[ext]
+        print(f"{filename} {ext} -> {key}\t{extra_args}")
         client.upload_file(filename, bucket, key, ExtraArgs=extra_args)
 
 
-def main(path: str, op: str, page_name: Optional[str]):
+def main(path: str, op: str, page_name: Optional[str], exclude: Optional[str]):
     if op == "setup":
         setup(path)
     elif op == "update":
         update(path, page_name)
     elif op == "sync":
-        sync_to_s3(path)
+        sync_to_s3(path, exclude)
     else:
         print(f"Unknown operation: {op}")
 
@@ -377,5 +410,8 @@ if __name__ == "__main__":
     """
     parser.add_argument("op", type=str, help="setup, update, sync")
     parser.add_argument("--page", type=str, help="update only specified page")
+    parser.add_argument(
+        "--exclude", type=str, help="exclude files matching this pattern from sync"
+    )
     args = parser.parse_args()
-    main(args.path, args.op, args.page)
+    main(args.path, args.op, args.page, args.exclude)

@@ -13,3 +13,5 @@ __pycache__/
 **/*.log
 **/node_modules
 .vscode/
+site/site.yml
+photos_meta.json photos_meta.json.bak

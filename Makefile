@@ -1,24 +1,31 @@
 lint:
-	black *.py scripts/*.py
-	flake8 *.py scripts/*.py
+	black *.py */*.py
+	flake8 *.py */*.py
 
+# copy favorited photos and live photos from the last 45 days to staging directory
+# re-encode mov to mp4
 apple-setup:
-    # copy favorited photos and live photos from the last 45 days to staging directory
-    # re-encode mov to mp4
-    python apple/main.py ~/Pictures/staging
+	python apple/main.py
 
+# copy photos to S3 and ente sync folder
 apple-generate:
-    # copy photos to S3 and ente sync folder
-    python apple/main.py ~/Pictures/staging --sync
+	python apple/main.py --sync
 
+site-start:
+	cp site/site.yml ~/Pictures/trips/2024-01-01/site.yml
+	echo "edit site.yml then run make site-setup"
+
+# create directory layout, resize, render HTML, create GeoJSON
 site-setup:
-    # create directory layout, resize, render HTML, create GeoJSON
-    python photos/main.py ~/Pictures/trips/2024-01-01 setup
+	cd site
+	python main.py ~/Pictures/trips/2024-01-01 setup
 
+# update - resize, merge HTML, write GeoJSON
 site-update:
-    # update - resize, merge HTML, write GeoJSON
-    python photos/main.py ~/Pictures/trips/2024-01-01 update
+	cd site
+	python main.py ~/Pictures/trips/2024-01-01 update
 
+# sync site to S3
 site-sync:
-    # sync site to S3
-    python photos/main.py ~/Pictures/trips/2024-01-01 sync
+	cd site
+	python main.py ~/Pictures/trips/2024-01-01 sync

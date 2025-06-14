@@ -1,5 +1,4 @@
 from datetime import datetime
-
 import glob
 import os
 import re
@@ -7,11 +6,29 @@ import subprocess
 from typing import Optional, List
 
 from exif import Image
+import piexif
+from PIL import Image as PILImage
 
 from dateutil import parser as date_parser
 
 
-def to_mp4(input_path: str, output_path: str, size: Optional[str] = None) -> str:
+def mp4_path(input_path: str):
+    filename = input_path.split("/")[-1]
+    output_path = input_path.replace(filename.split(".")[-1], "mp4").lower()
+    # try to get creation time from metadata
+    creation_dt = get_mp4_datetime(input_path)
+    if not creation_dt:
+        return output_path
+    # IMG_3417.MOV -> 2021-07-07_3417.mp4
+    new_fn = creation_dt.strftime("%Y-%m-%d_%H%M%S")
+    if match := re.search(r"_(\d+)\.", filename):
+        new_fn += f"_{match.group(1)}"
+    new_fn += ".mp4"
+    output_path = f"{input_path.replace(filename, new_fn)}"
+    return output_path
+
+
+def to_mp4(input_path: str, size: Optional[str] = None) -> str:
     """Use ffmpeg to convert a .mov to .mp4.
 
     -i input file
@@ -19,12 +36,24 @@ def to_mp4(input_path: str, output_path: str, size: Optional[str] = None) -> str
     -vcodec h264 use H.264 encoding
     -s target image size
     -y overwrite destination file
+    -map_metadata 0 map preserve metadata
+    -movflags use_metadata_tags -map_metadata 0
     """
+    output_path = mp4_path(input_path)
     size_params = ["-s", size] if size else []
     command = (
-            ["ffmpeg", "-i", input_path, "-an"]
-            + size_params
-            + [output_path, "-y", "-loglevel", "error"]
+        [
+            "ffmpeg",
+            "-i",
+            input_path,
+            "-movflags",
+            "use_metadata_tags",
+            "-map_metadata",
+            "0",
+            "-an",
+        ]
+        + size_params
+        + [output_path, "-y", "-loglevel", "error"]
     )
     print(" ".join(command))
     process = subprocess.run(
@@ -90,6 +119,7 @@ def exif_datetime(fn: str) -> datetime:
     """Try to get datetime from Exif metadata. If that doesn't work, try filename.
 
     :param fn: filename
+    :param keys: list of Exif keys to look for
     :return: datetime form Exif or filename.
     """
     with open(fn, "rb") as image_file:
@@ -106,7 +136,7 @@ def exif_datetime(fn: str) -> datetime:
                 raise ValueError(f"no exif date")
             return date_parser.parse(f"{d.replace(':', '-')} {t}")
         except Exception as exc:
-            # print(f"{fn}\terror parsing: {exc}")
+            print(f"{fn}\terror parsing: {exc}")
             pass
     return filename_datetime(fn)
 
@@ -115,6 +145,7 @@ def rename_exif(
     orig: str,
     dest: Optional[str] = None,
     year_prefix: bool = True,
+    overwrite: bool = False,
     dry_run: bool = False,
 ) -> str:
     """Rename JPG files with a datetime prefix; keep numbers at the end.
@@ -129,6 +160,7 @@ def rename_exif(
     :param orig: filename
     :param dest: destination path prefix
     :param year_prefix: if true, add the year as a path segment
+    :param overwrite: if true, overwrite existing files
     :param dry_run: if true, do not actually rename files
     :return: new filename
     """
@@ -141,7 +173,7 @@ def rename_exif(
     ext = orig.split(".")[-1].lower().replace("jpeg", "jpg")
     fn = f"{dt.strftime('%Y-%m-%d_%H%M%S')}{suffix}.{ext}"
     if fn == orig:
-        return
+        return fn
     prefix = ""
     if dest:
         if year_prefix:
@@ -158,49 +190,99 @@ def rename_exif(
             prefix = f"{dest}/"
     final_filename = f"{prefix}{fn}"
     print("rename", orig, final_filename)
+    # if final_filename exists, skip
+    if os.path.exists(final_filename) and not overwrite:
+        print(f"skip: {final_filename} exists")
+        if not dry_run:
+            os.remove(orig)
+        return final_filename
     if not dry_run:
         os.rename(orig, final_filename)
     return final_filename
 
 
-def rename_jpg(dest: str, year_prefix: bool, dry_run: bool) -> List[str]:
+def rename_jpg(
+    src: str,
+    dest: str,
+    year_prefix: bool = True,
+    overwrite: bool = False,
+    dry_run: bool = False,
+) -> List[str]:
     """Rename all jpg/jpeg files in the current directory with a datetime prefix.
 
+    :param src: source path prefix
     :param dest: destination path prefix
     :param year_prefix: if true, add the year as a path segment
+    :param overwrite: if true, overwrite existing files
     :param dry_run: if true, do not actually rename files
     :return: list of new filenames
     """
+    if src and not src.endswith("/"):
+        src += "/"
     filenames: List[str] = []
-    for idx, fn in enumerate(glob.glob("*.jpg") + glob.glob("*.jpeg") + glob.glob("*.JPG")):
+    for idx, fn in enumerate(
+        glob.glob(f"{src}*.JPG") + glob.glob(f"{src}*.jpg") + glob.glob(f"{src}*.jpeg")
+    ):
         try:
-            filenames.append(rename_exif(fn, dest, year_prefix, dry_run))
+            filenames.append(rename_exif(fn, dest, year_prefix, overwrite, dry_run))
         except Exception as exc:
             print(f"error renaming {fn}: {exc}")
     return filenames
 
 
-def rename_mp4(dest: str, year_prefix: bool, dry_run: bool) -> List[str]:
+def rename_mp4(
+    src: str,
+    dest: str,
+    year_prefix: bool = True,
+    overwrite: bool = False,
+    dry_run: bool = False,
+) -> List[str]:
     """Rename all mp4 files in the current directory with a datetime prefix.
 
+    :param src: source path prefix
     :param dest: destination path prefix
     :param year_prefix: if true, add the year as a path segment
+    :param overwrite: if true, overwrite existing files
     :param dry_run: if true, do not actually rename files
     :return: list of new filenames
     """
+    if src and not src.endswith("/"):
+        src += "/"
     filenames: List[str] = []
-    for idx, fn in enumerate(glob.glob("*.mp4")):
+    for idx, full_path in enumerate(glob.glob(f"{src}*.mp4")):
+        fn = full_path.split("/")[-1]
         prefix = f"{dest}/"
         if year_prefix:
-            fn = fn.split("/")[-1]
             prefix = f"{dest}/{fn[:4]}/"
         final_filename = f"{prefix}{fn}"
+        if os.path.exists(final_filename) and not overwrite:
+            print(f"skip: {final_filename} exists")
+            if not dry_run:
+                os.remove(fn)
+            continue
         if dry_run:
-            print("rename", fn, final_filename)
+            print("rename", full_path, final_filename)
         else:
-            os.rename(fn, final_filename)
+            os.rename(full_path, final_filename)
         filenames.append(final_filename)
     return filenames
+
+
+def get_mp4_datetime(file_path: str) -> Optional[datetime]:
+    """Extract datetime metadata from an MP4 file using ffmpeg."""
+    command = ["ffmpeg", "-i", file_path, "-dump", "-"]
+    process = subprocess.run(
+        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True
+    )
+
+    lines = process.stderr.splitlines() + process.stdout.splitlines()
+    lines = [line for line in lines if "creation_time" in line]
+    if not lines:
+        return None
+    # creation_time   : 2024-12-24T16:43:17.000000Z
+    if match := re.search(r"(\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d)", lines[0]):
+        return datetime.fromisoformat(match.group(1))
+    return None
 
 
 def remove_old(
@@ -238,26 +320,32 @@ def remove_old(
             os.remove(fn)
     print(f"remove {remove}")
 
+
 def extract_caption(fn: str) -> str:
     with open(fn, "rb") as image_file:
         img = Image(image_file)
     try:
         return img.image_description.strip()
-    except Exception:
+    except Exception as exc:
+        print(f"error reading caption from {fn}: {exc}")
         return ""
 
+
 def mp4_tag(filename: str) -> str:
-    html = """<div class="col">
-          <div class="card">
-            <video class="card-img-top%s" loop muted playsinline autoplay>
-              <source src="mp4/%s">
-            </video>
-            <div class="card-body">
-              <p class="card-text">%s</p>
-            </div>
-          </div>
-        </div>
-        """
+    # html = """<div class="col">
+    #       <div class="card">
+    #         <video class="card-img-top%s" loop muted playsinline autoplay>
+    #           <source src="mp4/%s">
+    #         </video>
+    #         <div class="card-body">
+    #           <p class="card-text">%s</p>
+    #         </div>
+    #       </div>
+    #     </div>
+    #     """
+    return ""
+
+
 def jpg_tag(filename: str) -> str:
     portrait = {}
     panorama = {}
@@ -289,10 +377,12 @@ def jpg_tag(filename: str) -> str:
 
     print("\n")
 
+
 def filenames_to_html(filenames: List[str]):
     meta = {}
     for fn in [f for f in filenames if f.endswith("jpg")]:
         meta[fn] = extract_caption(fn)
+
 
 def sync_to_s3(path: str, s3_bucket: str, filenames: List[str], dry_run: bool = False):
     os.chdir(path)
@@ -303,7 +393,16 @@ def sync_to_s3(path: str, s3_bucket: str, filenames: List[str], dry_run: bool = 
         print(f"{idx+1}/{len(filenames)}")
         # convert to relative path
         fn = fn.replace(f"{path}/", "")
-        command = ["aws", "s3", "cp", fn, f"s3://{s3_bucket}/{fn}", "--no-progress"]
+        command = [
+            "aws",
+            "s3",
+            "cp",
+            fn,
+            f"s3://{s3_bucket}/{fn}",
+            "--no-progress",
+            "--storage-class",
+            "STANDARD_IA",
+        ]
         print(" ".join(command))
         if not dry_run:
             process = subprocess.run(
@@ -313,3 +412,70 @@ def sync_to_s3(path: str, s3_bucket: str, filenames: List[str], dry_run: bool = 
                 universal_newlines=True,
             )
             print(process.stdout)
+
+
+def gps_float_to_dms(
+    deg_float: float,
+) -> tuple[tuple[int, int], tuple[int, int], tuple[int, int]]:
+    """Convert decimal degrees to degrees, minutes, seconds."""
+    deg_abs = abs(deg_float)
+    minutes, seconds = divmod(deg_abs * 3600, 60)
+    degrees, minutes = divmod(minutes, 60)
+
+    return (int(degrees), 1), (int(minutes), 1), (int(seconds * 100), 100)
+
+
+def write_gps_exif(dest: str, lat: float, lng: float):
+    # exif sometimes raises an exception when setting fields
+    # piexif is more robust
+    gps_ifd = {
+        piexif.GPSIFD.GPSLatitudeRef: b"N" if lat >= 0 else b"S",
+        piexif.GPSIFD.GPSLatitude: gps_float_to_dms(abs(lat)),
+        piexif.GPSIFD.GPSLongitudeRef: b"E" if lng >= 0 else b"W",
+        piexif.GPSIFD.GPSLongitude: gps_float_to_dms(abs(lng)),
+    }
+    exif_dict = {"GPS": gps_ifd}
+    exif_bytes = piexif.dump(exif_dict)
+    print(f"writing {gps_ifd}")
+
+    img = PILImage.open(dest)
+    img.save(dest, exif=exif_bytes)
+    print(f"wrote {dest}")
+
+
+def print_gps_exif(dest: str):
+    """Print GPS EXIF data from destination image."""
+    dest_img = Image(dest)
+    fields = set(dest_img.list_all())
+    gps_fields = [f for f in fields if f.lower().startswith("gps")]
+    for field in gps_fields:
+        print(f"{field}\t{getattr(dest_img, field)}")
+
+
+def copy_gps_exif(src: str, dest: str):
+    """Copy GPS EXIF data from source image to destination image."""
+    src_img = PILImage.open(src)
+    src_exif = piexif.load(src_img.info.get("exif", b""))
+    gps_ifd = src_exif.get("GPS")
+    if not gps_ifd:
+        print(f"{src} has no GPS data.")
+        return
+    print(f"writing {gps_ifd}")
+    dest_img = PILImage.open(dest)
+    dest_exif = piexif.load(dest_img.info.get("exif", b""))
+    dest_exif["GPS"] = gps_ifd
+    dest_img.save(dest, "jpeg", exif=piexif.dump(dest_exif))
+    print(f"wrote {dest}")
+
+
+def to_degrees(deg: float) -> tuple[float, float, float]:
+    """Convert decimal degrees to degrees, minutes, seconds."""
+    deg_abs = abs(deg)
+    minutes, seconds = divmod(deg_abs * 3600, 60)
+    degrees, minutes = divmod(minutes, 60)
+
+    return degrees, minutes, seconds
+
+
+def set_gps_exif(dest: str, lat: float, lng: float):
+    write_gps_exif(dest, lat, lng)
