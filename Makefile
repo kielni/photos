@@ -6,7 +6,15 @@ lint:
 # copy favorited photos and live photos from the last 45 days to staging directory
 # re-encode mov to mp4
 apple-setup:
-	python apple/main.py
+	osxphotos export ~/Pictures/apple-photos --favorite \
+		--download-missing \
+		--from-date "$$(date -v-90d +%Y-%m-%d)" \
+		--update --verbose
+	python apple/main.py --days 90
+
+# copy photos to S3 and enter sync folder
+apple-sync:
+	python apple/main.py --sync
 
 # copy photos to S3 and ente sync folder
 apple-generate:

@@ -1,6 +1,7 @@
 import argparse
 import glob
 import os
+import shutil
 import re
 from datetime import datetime, timedelta
 from typing import Optional
@@ -32,33 +33,53 @@ def filename_from_date(pi: PhotoInfo, ext: Optional[str] = None) -> str:
     return f"{filename}.{ext}" if ext else filename
 
 
-def export_live_photos(output_dir: str, results: list[PhotoInfo]):
+def export_live_photos(output_base: str, results: list[PhotoInfo]):
+    output_dir = f"{output_base}/staging"
     print(f"Found {len(results)} live photos")
     for photo in results:
         base_filename = filename_from_date(photo)
         filename = f"{base_filename}.mov"
         mov_path = f"{output_dir}/{filename}"
-        photo.export(output_dir, filename=filename, overwrite=True, live_photo=True)
-        photo.export(
-            output_dir,
-            filename=filename.replace(".mov", ".jpg"),
-            overwrite=True,
-            live_photo=False,
+        print(
+            photo.export(output_dir, filename=filename, overwrite=True, live_photo=True)
+        )
+        print(
+            photo.export(
+                output_dir,
+                filename=filename.replace(".mov", ".jpg"),
+                overwrite=True,
+                live_photo=False,
+            )
         )
         mp4_filename = to_mp4(mov_path)
         print(f"wrote Live Photo to {mp4_filename}")
         os.remove(mov_path)
 
 
-def export_photos_with_metadata(output_dir: str, results: list[PhotoInfo]):
+def export_photos_with_metadata(output_base: str, results: list[PhotoInfo]):
+    output_dir = f"{output_base}/staging"
     print(f"Found {len(results)} photos")
     for photo in results:
         filename = filename_from_date(photo, "jpg")
         full_filename = f"{output_dir}/{filename}"
+        # export IMG_3525.JPG to /Users/kimberly/Pictures/staging/2025-08-05_105855_3525.jpg
+        """
         print(f"\nexport {photo.original_filename} to {output_dir}/{filename}")
-        photo.export(
-            output_dir, filename=filename, overwrite=True, edited=photo.hasadjustments
-        )
+        if photo.ismissing:
+            print(f"{filename} is missing; iCloud only?")
+            # continue
+        print(photo.export(
+            output_dir, filename=filename, edited=photo.hasadjustments, options=options
+        ))
+        """
+        # copy from ~/Pictures/apple-photos/{photo.original_filename} to {output_dir}/{filename}
+        from_filename = f"{output_base}/apple-photos/{photo.original_filename}"
+        if not os.path.exists(from_filename):
+            print(f"{from_filename} does not exist")
+            continue
+        print(f"copy {from_filename} to {full_filename}")
+        # copy file
+        shutil.copy(from_filename, full_filename)
         # copy metadata from library and write to EXIF
         with ExifTool(f"{full_filename}", flags=["-m"]) as exif_tool:
             keywords: list[str] = []
@@ -83,20 +104,23 @@ def export_photos_with_metadata(output_dir: str, results: list[PhotoInfo]):
                 print("writing description: ", photo.description)
 
 
-def export(output_dir: str, days: int):
+def export(output_base: str, days: int):
+    output_dir = f"{output_base}/staging"
     from_dt = datetime.now() - timedelta(days=days)
     print(f"Export photos since {from_dt.strftime('%m/%d/%Y')} to {output_dir}")
     print("Loading PhotosDB..")
     photosdb = osxphotos.PhotosDB()
     export_photos_with_metadata(
-        output_dir, photosdb.query(QueryOptions(favorite=True, from_date=from_dt))
+        output_base, photosdb.query(QueryOptions(favorite=True, from_date=from_dt))
     )
     print("\n\n")
     export_live_photos(
-        output_dir,
+        output_base,
         photosdb.query(QueryOptions(favorite=True, from_date=from_dt, live=True)),
     )
-    print(f"\nreview photos in {output_dir}, then\npython apple/main.py --sync")
+    print(
+        f"\nreview photos in {output_base}/staging, then\npython apple/main.py --sync"
+    )
 
 
 def sync(root: str, bucket: str):
@@ -144,4 +168,4 @@ if __name__ == "__main__":
     if args.sync:
         sync(_output, _bucket)
     else:
-        export(f"{_output}/staging", args.days)
+        export(_output, args.days)
